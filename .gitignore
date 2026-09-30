@@ -1,0 +1,20 @@
+# Build artifacts
+target/
+node_modules/
+dist/
+
+# Environment and secrets
+.env
+.env.*
+.gemini/
+.claude/
+*.log
+*.pem
+*.key
+*.pfx
+
+# OS / Editor artifacts
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

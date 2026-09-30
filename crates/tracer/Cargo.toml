@@ -1,0 +1,10 @@
+[package]
+name = "tracer"
+version = "0.1.0"
+edition = "2021"
+
+[lints]
+workspace = true
+
+[dependencies]
+vtracer = "=0.6.5"

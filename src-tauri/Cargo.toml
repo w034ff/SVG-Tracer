@@ -1,0 +1,22 @@
+[package]
+name = "transform-images"
+version = "0.1.0"
+description = "Vectorize bitmap images to clean SVG"
+authors = ["w034ff"]
+edition = "2021"
+
+[lib]
+name = "transform_images_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[lints]
+workspace = true
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tracer = { path = "../crates/tracer" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
