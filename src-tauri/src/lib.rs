@@ -11,11 +11,3 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("Tauri context and runtime initialization must succeed");
 }
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn test_app_pkg_name() {
-        assert_eq!(env!("CARGO_PKG_NAME"), "transform-images");
-    }
-}

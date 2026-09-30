@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    transform_images_lib::run();
+    svg_tracer_lib::run();
 }

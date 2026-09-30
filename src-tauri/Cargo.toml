@@ -1,12 +1,12 @@
 [package]
-name = "transform-images"
+name = "svg-tracer"
 version = "0.1.0"
 description = "Vectorize bitmap images to clean SVG"
 authors = ["w034ff"]
-edition = "2021"
+edition = "2024"
 
 [lib]
-name = "transform_images_lib"
+name = "svg_tracer_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [lints]

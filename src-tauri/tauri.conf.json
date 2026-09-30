@@ -1,5 +1,5 @@
 {
-  "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/tooling/cli/schema.json",
+  "$schema": "https://schema.tauri.app/config/2",
   "productName": "SVG Tracer",
   "version": "0.1.0",
   "identifier": "com.w034ff.svgtracer",
