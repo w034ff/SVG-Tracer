@@ -19,3 +19,6 @@ src-tauri/gen/
 Thumbs.db
 .vscode/
 .idea/
+
+# Local drafts written by the implementer
+pr-description.md
