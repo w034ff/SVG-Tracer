@@ -228,7 +228,7 @@ T02〜T04 は並行して進められる。T09〜T11 も T08 の後に並行で�
 
 - タスクの「完了条件」をすべて満たしている。
 - 変更した振る舞いにテストがある。テストは、その機能を壊すと失敗する内容になっている。
-- ローカルで次がすべて成功する: `cargo fmt --check`、`cargo clippy --workspace --all-targets -- -D warnings`、`cargo test --workspace`、`npm run lint`、`npm run typecheck`、`npm test`。
+- ローカルで次がすべて成功する: `cargo fmt --check`、`cargo clippy --workspace --all-targets -- -D warnings`、`cargo test --workspace`、`npm run format:check`、`npm run lint`、`npm run typecheck`、`npm test`。
 - CI が Windows と Ubuntu で成功している。
 - GEMINI.md の規約に従っている。
 - 新しい依存を追加した場合、PR の説明にその名前、ライセンス、追加した理由を書いている。

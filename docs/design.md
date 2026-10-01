@@ -249,7 +249,10 @@ IPC では `{ code, detail }` の形で返す。`code` は下表の名前の文�
 
 - 保存先は Tauri の `app_config_dir()` 配下の `settings.json`。Rust が読み書きする。
 - 内容: `schemaVersion`、`language`（`ja` / `en` / 未設定）、`preset`、`params`、`batchInputDir`、`batchOutputDir`。
+- `preset` はプリセットの名前か `null`。`null` は「カスタム」（パラメータを手で変えた状態）を表す。
+- Rust は設定をメモリに 1 つだけ持ち、`save_settings` とフォルダの選択はどちらもそれを更新してからファイル全体を書き直す。書き込みは §5.4 と同じく一時ファイルからの改名で行い、書き込み途中の壊れたファイルを残さない（既存の設定ファイルは上書きする）。
 - フォルダは Rust がダイアログで選ばれたときに記録する。起動時に存在すれば、選択済みとしてハンドル表に登録し直す。存在しなければ未選択に戻す。
+- `get_settings` はパスを返さない。返すのは `{ language, preset, params, batchInput, batchOutput }` で、`batchInput` は `pick_batch_input` と同じ `{ dirLabel, targets, ignoredCount }`（起動時に列挙し直したもの）、`batchOutput` は `{ dirLabel }`。未選択ならどちらも `null`。
 - 読み込みに失敗した、または `schemaVersion` が未知の場合は既定値で起動する（設定ファイルが原因で起動できなくならないようにする）。
 - `preset` が未知の値、または `params` が §4.5 の範囲外の場合は、この 2 つだけを既定（ロゴ（カラー））に戻し、言語とフォルダは残す。
 - 保存はパラメータ変更から 1 秒後にまとめて行う。
