@@ -1,5 +1,6 @@
+import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import type { IpcError, ParamSpec, TraceParams } from "../../ipc";
 import { LanguageProvider, ParamsProvider } from "../../state";
 import { ParamsPanel } from "./ParamsPanel";
@@ -63,15 +64,11 @@ const TEST_SPEC: ParamSpec = {
 
 function renderParamsPanel(options?: {
   spec?: ParamSpec;
-  error?: IpcError;
   language?: "ja" | "en";
 }) {
   return render(
     <LanguageProvider initialLanguage={options?.language ?? "ja"}>
-      <ParamsProvider
-        initialSpec={options?.error ? undefined : (options?.spec ?? TEST_SPEC)}
-        initialError={options?.error}
-      >
+      <ParamsProvider initialSpec={options?.spec ?? TEST_SPEC}>
         <ParamsPanel />
       </ParamsProvider>
     </LanguageProvider>,
@@ -79,28 +76,56 @@ function renderParamsPanel(options?: {
 }
 
 describe("ParamsPanel", () => {
-  it("displays localized error message when get_param_spec fails in Japanese", () => {
+  afterEach(() => {
+    clearMocks();
+  });
+
+  it("displays localized error message when get_param_spec fails in Japanese", async () => {
     const error: IpcError = {
       code: "ReadFailed",
       detail: "Config file inaccessible",
     };
-    renderParamsPanel({ error, language: "ja" });
+    mockIPC((cmd) => {
+      if (cmd === "get_param_spec") {
+        return Promise.reject(error);
+      }
+    });
 
-    expect(screen.getByRole("alert")).toBeInTheDocument();
+    render(
+      <LanguageProvider initialLanguage="ja">
+        <ParamsProvider>
+          <ParamsPanel />
+        </ParamsProvider>
+      </LanguageProvider>,
+    );
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
     expect(
       screen.getByText("パラメータ設定の読み込みに失敗しました"),
     ).toBeInTheDocument();
     expect(screen.getByText("Config file inaccessible")).toBeInTheDocument();
   });
 
-  it("displays localized error message when get_param_spec fails in English", () => {
+  it("displays localized error message when get_param_spec fails in English", async () => {
     const error: IpcError = {
       code: "ReadFailed",
       detail: null,
     };
-    renderParamsPanel({ error, language: "en" });
+    mockIPC((cmd) => {
+      if (cmd === "get_param_spec") {
+        return Promise.reject(error);
+      }
+    });
 
-    expect(screen.getByRole("alert")).toBeInTheDocument();
+    render(
+      <LanguageProvider initialLanguage="en">
+        <ParamsProvider>
+          <ParamsPanel />
+        </ParamsProvider>
+      </LanguageProvider>,
+    );
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
     expect(
       screen.getByText("Failed to load parameter settings"),
     ).toBeInTheDocument();

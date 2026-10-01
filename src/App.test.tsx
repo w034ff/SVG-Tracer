@@ -1,5 +1,6 @@
+import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { App } from "./App";
 import type { ParamSpec, TraceParams } from "./ipc";
 
@@ -31,6 +32,9 @@ const TEST_SPEC: ParamSpec = {
 };
 
 describe("App", () => {
+  afterEach(() => {
+    clearMocks();
+  });
   it("renders the top bar with app title, mode tabs, language selector, and about button in Japanese", () => {
     render(<App initialSpec={TEST_SPEC} initialLanguage="ja" />);
 
@@ -89,18 +93,19 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: "About" })).toBeInTheDocument();
   });
 
-  it("displays localized error message when getParamSpec fails", () => {
-    render(
-      <App
-        initialLanguage="ja"
-        initialParamError={{
+  it("displays localized error message when getParamSpec fails", async () => {
+    mockIPC((cmd) => {
+      if (cmd === "get_param_spec") {
+        return Promise.reject({
           code: "ReadFailed",
           detail: "Backend read error",
-        }}
-      />,
-    );
+        });
+      }
+    });
 
-    expect(screen.getByRole("alert")).toBeInTheDocument();
+    render(<App initialLanguage="ja" />);
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
     expect(
       screen.getByText("パラメータ設定の読み込みに失敗しました"),
     ).toBeInTheDocument();
