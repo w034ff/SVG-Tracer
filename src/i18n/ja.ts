@@ -1,3 +1,47 @@
 export const ja = {
   appTitle: "SVG Tracer",
+  tabSingle: "単体変換",
+  tabBatch: "一括変換",
+  mode: "モード",
+  language: "言語",
+  about: "このアプリについて",
+  languageJa: "日本語",
+  languageEn: "English",
+
+  preset: "プリセット",
+  presetColorLogo: "ロゴ（カラー）",
+  presetColorIcon: "アイコン（少色）",
+  presetBinary: "白黒",
+  presetCustom: "カスタム",
+
+  colorMode: "色",
+  colorModeColor: "カラー",
+  colorModeBinary: "白黒",
+
+  colorPrecision: "色の精度",
+  filterSpeckle: "ノイズ除去",
+  cornerThreshold: "角の判定",
+
+  curveMode: "線の種類",
+  curveModeSpline: "曲線",
+  curveModePolygon: "多角形",
+
+  advanced: "詳細設定",
+  layerDifference: "色の階調差",
+  hierarchical: "重ね方",
+  hierarchicalStacked: "重ねる",
+  hierarchicalCutout: "切り抜く",
+  lengthThreshold: "線分の長さ",
+  spliceThreshold: "曲線の分割",
+  pathPrecision: "座標の精度",
+
+  errorUnsupportedFormat: "非対応の画像形式です",
+  errorDecodeFailed: "画像のデコードに失敗しました",
+  errorTooLarge: "画像サイズが上限を超過しています",
+  errorReadFailed: "ファイルの読み込みに失敗しました",
+  errorWriteFailed: "ファイルの書き込みに失敗しました",
+  errorTraceFailed: "ベクター変換に失敗しました",
+  errorBatchRunning: "一括変換が既に実行中です",
+  errorUnknownHandle: "画像ハンドルが見つかりません",
+  errorInvalidParams: "無効なパラメータです",
 };
