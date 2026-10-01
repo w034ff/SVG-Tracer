@@ -287,6 +287,10 @@ fn test_logo_small_transparency_preserves_transparent_pixels() {
 // =========================================================================
 
 #[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "Performance test requires release optimizations (design §9.3)"
+)]
 fn test_1024x1024_conversion_time() {
     let img = load_fixture("logo_color.png");
     assert_eq!(img.width(), 1024);
@@ -299,19 +303,8 @@ fn test_1024x1024_conversion_time() {
     let elapsed = start.elapsed();
 
     assert!(output.path_count > 0);
-
-    if cfg!(not(debug_assertions)) {
-        // Enforce 6.0s limit in release mode as required by work-plan T03
-        assert!(
-            elapsed <= Duration::from_secs(6),
-            "Conversion time in release mode ({elapsed:?}) exceeded 6s limit"
-        );
-    } else {
-        // In debug mode, compilation is unoptimized. We allow a relaxed 30s threshold
-        // to avoid false failures on slow or busy CI runners while still guarding against hangs.
-        assert!(
-            elapsed <= Duration::from_secs(30),
-            "Conversion time in debug mode ({elapsed:?}) exceeded 30s limit"
-        );
-    }
+    assert!(
+        elapsed <= Duration::from_secs(6),
+        "Conversion time in release mode ({elapsed:?}) exceeded 6s limit"
+    );
 }

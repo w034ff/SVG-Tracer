@@ -73,3 +73,6 @@ jobs:
 
       - name: Rust Test
         run: cargo test --workspace
+
+      - name: Rust Test (Release Performance)
+        run: cargo test -p tracer --release --test quality test_1024x1024_conversion_time

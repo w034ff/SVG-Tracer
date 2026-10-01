@@ -67,10 +67,12 @@ pub fn trace(image: &RgbaImage, params: &TraceParams) -> Result<TraceOutput, Tra
 
     let (processed, has_p2_margin) = preprocess_for_trace(image, params.color_mode);
 
+    let width = processed.width() as usize;
+    let height = processed.height() as usize;
     let color_img = ColorImage {
-        pixels: processed.as_raw().clone(),
-        width: processed.width() as usize,
-        height: processed.height() as usize,
+        pixels: processed.into_raw(),
+        width,
+        height,
     };
 
     let config = params.to_vtracer_config();
