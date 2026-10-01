@@ -1,7 +1,11 @@
 //! Trace parameters, limits, and preset configurations per design §4.5.
 
+use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 use visioncortex::PathSimplifyMode as VtPathSimplifyMode;
 use vtracer::{ColorMode as VtColorMode, Config as VtConfig, Hierarchical as VtHierarchical};
+
+use crate::error::TraceError;
 
 /// Parameter limits and default constants per design §4.5.
 pub const COLOR_PRECISION_MIN: i32 = 1;
@@ -23,28 +27,32 @@ pub const PATH_PRECISION_MAX: u32 = 8;
 pub const MAX_ITERATIONS: usize = 10;
 
 /// Color tracing mode.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "lowercase")]
 pub enum ColorMode {
     Color,
     Binary,
 }
 
 /// Curve fitting mode for path simplification.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "lowercase")]
 pub enum CurveMode {
     Spline,
     Polygon,
 }
 
 /// Layering mode for color shapes.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "lowercase")]
 pub enum Hierarchical {
     Stacked,
     Cutout,
 }
 
 /// Available parameter presets per design §4.5.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
 pub enum Preset {
     /// Preset for colored logos (default).
     ColorLogo,
@@ -55,7 +63,8 @@ pub enum Preset {
 }
 
 /// Parameters controlling VTracer vectorization.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
 pub struct TraceParams {
     pub color_mode: ColorMode,
     pub color_precision: i32,
@@ -152,6 +161,39 @@ impl TraceParams {
             path_precision: Some(self.path_precision),
         }
     }
+
+    /// Validates all parameters against the allowed ranges defined in design §4.5.
+    ///
+    /// Checks all fields (including fields not used in binary mode). Rejects `NaN`
+    /// for `length_threshold`.
+    ///
+    /// Returns [`Ok(())`] if valid, or [`Err(TraceError::InvalidParams)`] if out of bounds.
+    pub fn validate(&self) -> Result<(), TraceError> {
+        if !(COLOR_PRECISION_MIN..=COLOR_PRECISION_MAX).contains(&self.color_precision) {
+            return Err(TraceError::InvalidParams);
+        }
+        if !(FILTER_SPECKLE_MIN..=FILTER_SPECKLE_MAX).contains(&self.filter_speckle) {
+            return Err(TraceError::InvalidParams);
+        }
+        if !(CORNER_THRESHOLD_MIN..=CORNER_THRESHOLD_MAX).contains(&self.corner_threshold) {
+            return Err(TraceError::InvalidParams);
+        }
+        if !(LAYER_DIFFERENCE_MIN..=LAYER_DIFFERENCE_MAX).contains(&self.layer_difference) {
+            return Err(TraceError::InvalidParams);
+        }
+        if self.length_threshold.is_nan()
+            || !(LENGTH_THRESHOLD_MIN..=LENGTH_THRESHOLD_MAX).contains(&self.length_threshold)
+        {
+            return Err(TraceError::InvalidParams);
+        }
+        if !(SPLICE_THRESHOLD_MIN..=SPLICE_THRESHOLD_MAX).contains(&self.splice_threshold) {
+            return Err(TraceError::InvalidParams);
+        }
+        if !(PATH_PRECISION_MIN..=PATH_PRECISION_MAX).contains(&self.path_precision) {
+            return Err(TraceError::InvalidParams);
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -208,5 +250,106 @@ mod tests {
         assert_eq!(config.max_iterations, 10);
         assert_eq!(config.splice_threshold, 45);
         assert_eq!(config.path_precision, Some(2));
+    }
+
+    #[test]
+    fn test_validate_presets_pass() {
+        for preset in Preset::all() {
+            assert!(preset.params().validate().is_ok());
+        }
+    }
+
+    #[test]
+    fn test_validate_parameter_boundaries() {
+        let base = Preset::ColorLogo.params();
+
+        // color_precision: 1..=8
+        let mut p = base.clone();
+        p.color_precision = COLOR_PRECISION_MIN;
+        assert!(p.validate().is_ok());
+        p.color_precision = COLOR_PRECISION_MAX;
+        assert!(p.validate().is_ok());
+        p.color_precision = COLOR_PRECISION_MIN - 1;
+        assert_eq!(p.validate(), Err(TraceError::InvalidParams));
+        p.color_precision = COLOR_PRECISION_MAX + 1;
+        assert_eq!(p.validate(), Err(TraceError::InvalidParams));
+
+        // filter_speckle: 0..=16
+        let mut p = base.clone();
+        p.filter_speckle = FILTER_SPECKLE_MIN;
+        assert!(p.validate().is_ok());
+        p.filter_speckle = FILTER_SPECKLE_MAX;
+        assert!(p.validate().is_ok());
+        p.filter_speckle = FILTER_SPECKLE_MAX + 1;
+        assert_eq!(p.validate(), Err(TraceError::InvalidParams));
+
+        // corner_threshold: 0..=180
+        let mut p = base.clone();
+        p.corner_threshold = CORNER_THRESHOLD_MIN;
+        assert!(p.validate().is_ok());
+        p.corner_threshold = CORNER_THRESHOLD_MAX;
+        assert!(p.validate().is_ok());
+        p.corner_threshold = CORNER_THRESHOLD_MIN - 1;
+        assert_eq!(p.validate(), Err(TraceError::InvalidParams));
+        p.corner_threshold = CORNER_THRESHOLD_MAX + 1;
+        assert_eq!(p.validate(), Err(TraceError::InvalidParams));
+
+        // layer_difference: 0..=128
+        let mut p = base.clone();
+        p.layer_difference = LAYER_DIFFERENCE_MIN;
+        assert!(p.validate().is_ok());
+        p.layer_difference = LAYER_DIFFERENCE_MAX;
+        assert!(p.validate().is_ok());
+        p.layer_difference = LAYER_DIFFERENCE_MIN - 1;
+        assert_eq!(p.validate(), Err(TraceError::InvalidParams));
+        p.layer_difference = LAYER_DIFFERENCE_MAX + 1;
+        assert_eq!(p.validate(), Err(TraceError::InvalidParams));
+
+        // length_threshold: 3.5..=10.0
+        let mut p = base.clone();
+        p.length_threshold = LENGTH_THRESHOLD_MIN;
+        assert!(p.validate().is_ok());
+        p.length_threshold = LENGTH_THRESHOLD_MAX;
+        assert!(p.validate().is_ok());
+        p.length_threshold = LENGTH_THRESHOLD_MIN - 0.1;
+        assert_eq!(p.validate(), Err(TraceError::InvalidParams));
+        p.length_threshold = LENGTH_THRESHOLD_MAX + 0.1;
+        assert_eq!(p.validate(), Err(TraceError::InvalidParams));
+        p.length_threshold = f64::NAN;
+        assert_eq!(p.validate(), Err(TraceError::InvalidParams));
+
+        // splice_threshold: 0..=180
+        let mut p = base.clone();
+        p.splice_threshold = SPLICE_THRESHOLD_MIN;
+        assert!(p.validate().is_ok());
+        p.splice_threshold = SPLICE_THRESHOLD_MAX;
+        assert!(p.validate().is_ok());
+        p.splice_threshold = SPLICE_THRESHOLD_MIN - 1;
+        assert_eq!(p.validate(), Err(TraceError::InvalidParams));
+        p.splice_threshold = SPLICE_THRESHOLD_MAX + 1;
+        assert_eq!(p.validate(), Err(TraceError::InvalidParams));
+
+        // path_precision: 0..=8
+        let mut p = base.clone();
+        p.path_precision = PATH_PRECISION_MIN;
+        assert!(p.validate().is_ok());
+        p.path_precision = PATH_PRECISION_MAX;
+        assert!(p.validate().is_ok());
+        p.path_precision = PATH_PRECISION_MAX + 1;
+        assert_eq!(p.validate(), Err(TraceError::InvalidParams));
+    }
+
+    #[test]
+    fn test_validate_validates_color_fields_even_in_binary_mode() {
+        let mut p = Preset::Binary.params();
+        assert_eq!(p.color_mode, ColorMode::Binary);
+        assert!(p.validate().is_ok());
+
+        p.color_precision = COLOR_PRECISION_MAX + 1;
+        assert_eq!(p.validate(), Err(TraceError::InvalidParams));
+
+        p = Preset::Binary.params();
+        p.layer_difference = LAYER_DIFFERENCE_MAX + 1;
+        assert_eq!(p.validate(), Err(TraceError::InvalidParams));
     }
 }

@@ -4,3 +4,4 @@ target/
 dist/
 package-lock.json
 Cargo.lock
+src/ipc/generated/
