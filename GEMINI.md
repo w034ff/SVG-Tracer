@@ -13,6 +13,7 @@ Rules for the implementer of this repository. Read this file and the documents b
 - Stay inside the task. Do not refactor unrelated code, update unrelated dependencies, or add features that the task does not ask for.
 - Do not edit `docs/requirements.md` or `docs/design.md`. If the design is ambiguous, contradictory or cannot be implemented as written, stop and describe the problem under "設計への質問" in the PR description instead of guessing.
 - Write PR descriptions in Japanese, following `docs/work-plan.md` §2.
+- Write the PR description to `pr-description.md` in the repository root (it is git-ignored) instead of printing it in the chat, and give its title on one line. Overwrite the file for each PR.
 - Before opening a PR, run every command in `docs/work-plan.md` §5 and make sure all of them pass.
 - In PR descriptions, report only what you actually ran or checked. Never cite a file, setting or design statement as evidence unless it exists and says what you claim.
 
