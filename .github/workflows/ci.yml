@@ -74,5 +74,8 @@ jobs:
       - name: Rust Test
         run: cargo test --workspace
 
+      - name: Check TypeScript bindings diff
+        run: git diff --exit-code src/ipc/generated/
+
       - name: Rust Test (Release Performance)
         run: cargo test -p tracer --release --test quality test_1024x1024_conversion_time

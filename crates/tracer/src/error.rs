@@ -15,6 +15,8 @@ pub enum TraceError {
     ReadFailed(String),
     /// VTracer conversion or SVG formatting failed.
     TraceFailed(String),
+    /// Trace parameters are outside their allowed range per design §4.5.
+    InvalidParams,
 }
 
 impl fmt::Display for TraceError {
@@ -25,6 +27,7 @@ impl fmt::Display for TraceError {
             Self::TooLarge => write!(f, "Image pixel count exceeds maximum limit"),
             Self::ReadFailed(detail) => write!(f, "Failed to read image file: {detail}"),
             Self::TraceFailed(detail) => write!(f, "Trace failed: {detail}"),
+            Self::InvalidParams => write!(f, "Invalid parameters"),
         }
     }
 }

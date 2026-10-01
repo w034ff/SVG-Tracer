@@ -94,3 +94,19 @@ fn map_image_error(err: ImageError) -> TraceError {
         _ => TraceError::DecodeFailed,
     }
 }
+
+/// Encodes an [`RgbaImage`] into PNG bytes.
+///
+/// Used for generating image preview data across IPC per design §6.1.
+///
+/// # Errors
+///
+/// Returns [`TraceError::DecodeFailed`] if PNG encoding fails.
+pub fn encode_png(image: &RgbaImage) -> Result<Vec<u8>, TraceError> {
+    let mut bytes = Vec::new();
+    let encoder = image::codecs::png::PngEncoder::new(&mut bytes);
+    image
+        .write_with_encoder(encoder)
+        .map_err(|_| TraceError::DecodeFailed)?;
+    Ok(bytes)
+}

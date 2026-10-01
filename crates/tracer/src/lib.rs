@@ -6,8 +6,9 @@ pub mod params;
 pub mod preprocess;
 pub mod trace;
 
-pub use decode::{MAX_PIXELS, SUPPORTED_EXTENSIONS, load_image};
+pub use decode::{MAX_PIXELS, SUPPORTED_EXTENSIONS, encode_png, load_image};
 pub use error::TraceError;
+pub use image::RgbaImage;
 pub use params::{
     COLOR_PRECISION_MAX, COLOR_PRECISION_MIN, CORNER_THRESHOLD_MAX, CORNER_THRESHOLD_MIN,
     ColorMode, CurveMode, FILTER_SPECKLE_MAX, FILTER_SPECKLE_MIN, Hierarchical,
