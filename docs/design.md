@@ -228,6 +228,8 @@ SVG ペインでは SVG を `blob:` URL にして `<img>` で表示する。`inn
 
 Rust は次のコードを持つエラーを返し、フロントエンドがコードから表示文言を引く。`detail` は OS のエラーメッセージなど補足情報で、表示の末尾に添える。
 
+IPC では `{ code, detail }` の形で返す。`code` は下表の名前の文字列で、ts-rs では文字列リテラルの union 型として生成する。`detail` は補足がなければ `null`。`crates/tracer` の `TraceError` は Tauri に依存しないので、`src-tauri` 側でこの形に変換する。
+
 | コード | 状況 |
 | --- | --- |
 | UnsupportedFormat | 非対応の形式 |
@@ -260,7 +262,7 @@ Rust は次のコードを持つエラーを返し、フロントエンドがコ
 | `get_settings` | – | Settings | §5.6 |
 | `save_settings` | language, preset, params | – | フォルダは含めない |
 | `pick_image` | – | `{ id, name } \| null` | Rust がファイルダイアログを開く |
-| `load_preview` | id | PNG のバイナリ（`tauri::ipc::Response`）と幅・高さ | base64 を使わずバイナリで返す |
+| `load_preview` | id | PNG のバイナリ（`tauri::ipc::Response`） | base64 を使わずバイナリで返す。`Response` はバイト列しか運べないので幅・高さは返さず、フロントエンドが表示した画像の `naturalWidth` / `naturalHeight` から得る |
 | `convert` | id, params, seq | `{ svg, pathCount, bytes, elapsedMs }` | §5.1 |
 | `save_svg` | id | `{ savedName } \| null` | Rust が保存ダイアログを開き直近の結果を保存 |
 | `pick_batch_input` | – | `{ dirLabel, targets: string[], ignoredCount } \| null` | |
