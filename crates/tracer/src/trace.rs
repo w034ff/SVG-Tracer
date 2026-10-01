@@ -62,6 +62,8 @@ pub fn count_paths(svg: &str) -> usize {
 /// Executes preprocessing (P1/P2/P3), invokes VTracer, formats the root `<svg>` tag,
 /// and returns the resulting SVG string along with path count.
 pub fn trace(image: &RgbaImage, params: &TraceParams) -> Result<TraceOutput, TraceError> {
+    params.validate()?;
+
     let orig_w = image.width();
     let orig_h = image.height();
 
@@ -133,5 +135,17 @@ mod tests {
         let svg = "<svg><path d=\"...\"/><path d=\"...\"/><g><path d=\"...\"/></g></svg>";
         assert_eq!(count_paths(svg), 3);
         assert_eq!(count_paths("<svg></svg>"), 0);
+    }
+
+    #[test]
+    fn test_trace_invalid_params_rejected() {
+        let img = RgbaImage::new(10, 10);
+        let params = TraceParams {
+            color_precision: 99,
+            ..TraceParams::default()
+        };
+
+        let result = trace(&img, &params);
+        assert_eq!(result, Err(TraceError::InvalidParams));
     }
 }
