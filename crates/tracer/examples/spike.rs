@@ -332,43 +332,74 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let icon_mono_trans = image::open(&icon_mono_trans_path)?.to_rgba8();
     let icon_mono_white_path = fixtures_dir.join("icon_mono.png");
     let icon_mono_white = image::open(&icon_mono_white_path)?.to_rgba8();
-    let p1_ref_trans = apply_p1(&icon_mono_trans);
     let mono_preset = &presets[2].config;
 
-    // 2a: Without P3
+    // Decided comparison method: SVG rendered on white canvas, reference is P3(P1(image))
+    let ref_mono_trans = apply_p3(&apply_p1(&icon_mono_trans));
+    let ref_mono_white = apply_p3(&apply_p1(&icon_mono_white));
+
+    // 2a: Without P3 (transparent input)
     println!("Testing icon_mono_transparent.png WITHOUT P3...");
-    let (svg_no_p3, rendered_no_p3) = run_trace(&icon_mono_trans, mono_preset, false, false, None)?;
-    let (_mismatches_no_p3, ratio_no_p3) = compare_images(&icon_mono_white, &rendered_no_p3);
-    // Count how many pixels are black in rendered_no_p3
+    let (svg_no_p3, rendered_no_p3) = run_trace(
+        &icon_mono_trans,
+        mono_preset,
+        false,
+        false,
+        Some(resvg::tiny_skia::Color::WHITE),
+    )?;
+    let (_mismatches_no_p3, ratio_no_p3) = compare_images(&ref_mono_trans, &rendered_no_p3);
     let black_pixels_no_p3 = rendered_no_p3
         .pixels()
         .filter(|p| p[0] < 128 && p[3] >= 128)
         .count();
     let total_pixels_icon = (icon_mono_trans.width() * icon_mono_trans.height()) as usize;
     println!(
-        "  Without P3: paths = {}, mismatch vs icon_mono = {ratio_no_p3:.2}%, black pixels = {black_pixels_no_p3}/{total_pixels_icon}",
+        "  Without P3: paths = {}, mismatch = {ratio_no_p3:.2}%, black pixels = {black_pixels_no_p3}/{total_pixels_icon}",
         count_paths(&svg_no_p3)
     );
 
-    // 2b: With P3
+    // 2b: With P3 (transparent input)
     println!("Testing icon_mono_transparent.png WITH P3...");
-    let (svg_with_p3, rendered_with_p3) =
-        run_trace(&icon_mono_trans, mono_preset, false, true, None)?;
-    let (_mismatches_with_p3, ratio_with_p3) = compare_images(&icon_mono_white, &rendered_with_p3);
-    let (_mismatches_trans_ref, ratio_trans_ref) = compare_images(&p1_ref_trans, &rendered_with_p3);
-    let black_pixels_with_p3 = rendered_with_p3
+    let (svg_with_p3_trans, rendered_with_p3_trans) = run_trace(
+        &icon_mono_trans,
+        mono_preset,
+        false,
+        true,
+        Some(resvg::tiny_skia::Color::WHITE),
+    )?;
+    let (_mismatches_with_p3_trans, ratio_with_p3_trans) =
+        compare_images(&ref_mono_trans, &rendered_with_p3_trans);
+    let black_pixels_with_p3_trans = rendered_with_p3_trans
         .pixels()
         .filter(|p| p[0] < 128 && p[3] >= 128)
         .count();
     println!(
-        "  With P3: paths = {}, mismatch vs icon_mono (white bg) = {ratio_with_p3:.2}%, mismatch vs icon_mono_trans (trans bg) = {ratio_trans_ref:.2}%, black pixels = {black_pixels_with_p3}/{total_pixels_icon}",
-        count_paths(&svg_with_p3)
+        "  With P3 (trans): paths = {}, mismatch = {ratio_with_p3_trans:.2}%, black pixels = {black_pixels_with_p3_trans}/{total_pixels_icon}",
+        count_paths(&svg_with_p3_trans)
     );
-    let spike2_success = ratio_no_p3 > 50.0 && ratio_trans_ref < 3.0;
+
+    // 2c: With P3 (white background input)
+    println!("Testing icon_mono.png WITH P3...");
+    let (svg_with_p3_white, rendered_with_p3_white) = run_trace(
+        &icon_mono_white,
+        mono_preset,
+        false,
+        true,
+        Some(resvg::tiny_skia::Color::WHITE),
+    )?;
+    let (_mismatches_with_p3_white, ratio_with_p3_white) =
+        compare_images(&ref_mono_white, &rendered_with_p3_white);
+    println!(
+        "  With P3 (white): paths = {}, mismatch = {ratio_with_p3_white:.2}%",
+        count_paths(&svg_with_p3_white)
+    );
+
+    let spike2_success =
+        ratio_no_p3 > 50.0 && ratio_with_p3_trans < 3.0 && ratio_with_p3_white < 3.0;
     println!(
         "  Result: {}",
         if spike2_success {
-            "SUCCESS (P3 correctly preserves shape and prevents full black)"
+            "SUCCESS (P3 correctly preserves shape and prevents full black; white canvas evaluation matches)"
         } else {
             "FAILED"
         }
@@ -446,38 +477,94 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let test_cases = [
+        // logo_color.png (1024x1024)
         TestCase {
-            fixture_name: "logo_color.png (1024x1024)",
+            fixture_name: "logo_color.png",
             image_path: fixtures_dir.join("logo_color.png"),
             preset_idx: 0, // ロゴ（カラー）
             is_binary: false,
         },
         TestCase {
-            fixture_name: "logo_color.png (1024x1024)",
+            fixture_name: "logo_color.png",
             image_path: fixtures_dir.join("logo_color.png"),
             preset_idx: 1, // アイコン（少色）
             is_binary: false,
         },
+        // logo_color.jpg (1024x1024)
         TestCase {
-            fixture_name: "logo_small_transparency.png (512x512)",
+            fixture_name: "logo_color.jpg",
+            image_path: fixtures_dir.join("logo_color.jpg"),
+            preset_idx: 0, // ロゴ（カラー）
+            is_binary: false,
+        },
+        TestCase {
+            fixture_name: "logo_color.jpg",
+            image_path: fixtures_dir.join("logo_color.jpg"),
+            preset_idx: 1, // アイコン（少色）
+            is_binary: false,
+        },
+        // logo_color.webp (1024x1024)
+        TestCase {
+            fixture_name: "logo_color.webp",
+            image_path: fixtures_dir.join("logo_color.webp"),
+            preset_idx: 0, // ロゴ（カラー）
+            is_binary: false,
+        },
+        TestCase {
+            fixture_name: "logo_color.webp",
+            image_path: fixtures_dir.join("logo_color.webp"),
+            preset_idx: 1, // アイコン（少色）
+            is_binary: false,
+        },
+        // logo_color.bmp (1024x1024)
+        TestCase {
+            fixture_name: "logo_color.bmp",
+            image_path: fixtures_dir.join("logo_color.bmp"),
+            preset_idx: 0, // ロゴ（カラー）
+            is_binary: false,
+        },
+        TestCase {
+            fixture_name: "logo_color.bmp",
+            image_path: fixtures_dir.join("logo_color.bmp"),
+            preset_idx: 1, // アイコン（少色）
+            is_binary: false,
+        },
+        // logo_color.gif (1024x1024)
+        TestCase {
+            fixture_name: "logo_color.gif",
+            image_path: fixtures_dir.join("logo_color.gif"),
+            preset_idx: 0, // ロゴ（カラー）
+            is_binary: false,
+        },
+        TestCase {
+            fixture_name: "logo_color.gif",
+            image_path: fixtures_dir.join("logo_color.gif"),
+            preset_idx: 1, // アイコン（少色）
+            is_binary: false,
+        },
+        // logo_small_transparency.png (512x512)
+        TestCase {
+            fixture_name: "logo_small_transparency.png",
             image_path: fixtures_dir.join("logo_small_transparency.png"),
             preset_idx: 0, // ロゴ（カラー）
             is_binary: false,
         },
         TestCase {
-            fixture_name: "logo_small_transparency.png (512x512)",
+            fixture_name: "logo_small_transparency.png",
             image_path: fixtures_dir.join("logo_small_transparency.png"),
             preset_idx: 1, // アイコン（少色）
             is_binary: false,
         },
+        // icon_mono.png (256x256)
         TestCase {
-            fixture_name: "icon_mono.png (256x256)",
+            fixture_name: "icon_mono.png",
             image_path: fixtures_dir.join("icon_mono.png"),
             preset_idx: 2, // 白黒
             is_binary: true,
         },
+        // icon_mono_transparent.png (256x256)
         TestCase {
-            fixture_name: "icon_mono_transparent.png (256x256)",
+            fixture_name: "icon_mono_transparent.png",
             image_path: fixtures_dir.join("icon_mono_transparent.png"),
             preset_idx: 2, // 白黒
             is_binary: true,
@@ -485,22 +572,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     ];
 
     println!(
-        "{:<38} | {:<16} | {:>7} | {:>10} | {:>12} | {:>10}",
+        "{:<32} | {:<16} | {:>7} | {:>10} | {:>12} | {:>10}",
         "Fixture", "Preset", "Paths", "Mismatches", "Mismatch (%)", "Time (ms)"
     );
     println!(
-        "{:-<38}-+-{:-<16}-+-{:-<7}-+-{:-<10}-+-{:-<12}-+-{:-<10}",
+        "{:-<32}-+-{:-<16}-+-{:-<7}-+-{:-<10}-+-{:-<12}-+-{:-<10}",
         "", "", "", "", "", ""
     );
 
-    let mut max_observed_mismatch_literal = 0.0_f64;
+    let mut max_observed_mismatch = 0.0_f64;
 
     for tc in &test_cases {
         let raw_img = image::open(&tc.image_path)?.to_rgba8();
         let preset = &presets[tc.preset_idx];
 
         let start = Instant::now();
-        let (svg, rendered) = run_trace(&raw_img, &preset.config, true, tc.is_binary, None)?;
+        let bg_color = if tc.is_binary {
+            Some(resvg::tiny_skia::Color::WHITE)
+        } else {
+            None
+        };
+        let (svg, rendered) = run_trace(&raw_img, &preset.config, true, tc.is_binary, bg_color)?;
         let elapsed = start.elapsed().as_millis();
 
         let ref_img = if tc.is_binary {
@@ -512,84 +604,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let (mismatches, ratio) = compare_images(&ref_img, &rendered);
         let path_cnt = count_paths(&svg);
 
-        if ratio > max_observed_mismatch_literal {
-            max_observed_mismatch_literal = ratio;
+        if ratio > max_observed_mismatch {
+            max_observed_mismatch = ratio;
         }
 
         println!(
-            "{:<38} | {:<16} | {:>7} | {:>10} | {:>11.2}% | {:>8}ms",
+            "{:<32} | {:<16} | {:>7} | {:>10} | {:>11.2}% | {:>8}ms",
             tc.fixture_name, preset.name, path_cnt, mismatches, ratio, elapsed
         );
     }
 
+    println!("\nMax Observed Mismatch: {:.2}%", max_observed_mismatch);
     println!(
-        "\nLiteral §9.2 Max Observed Mismatch: {:.2}%",
-        max_observed_mismatch_literal
-    );
-
-    println!("\n--- Verification 4 (Refined Background Handling Analysis) ---");
-    println!(
-        "In VTracer binary mode, only black paths (fill='#000000') are emitted; no background path is generated."
-    );
-    println!(
-        "When rasterizing on a transparent canvas, white backgrounds in the original become transparent in SVG,"
-    );
-    println!("causing all white pixels to be treated as mismatches under the literal §9.2 rule.");
-    println!("When background consistency is considered:");
-    println!("  - icon_mono.png rendered onto white canvas (since input had white background)");
-    println!("  - icon_mono_transparent.png compared against transparent reference");
-    println!();
-
-    println!(
-        "{:<38} | {:<16} | {:>7} | {:>10} | {:>12} | {:>10}",
-        "Fixture", "Preset", "Paths", "Mismatches", "Mismatch (%)", "Time (ms)"
-    );
-    println!(
-        "{:-<38}-+-{:-<16}-+-{:-<7}-+-{:-<10}-+-{:-<12}-+-{:-<10}",
-        "", "", "", "", "", ""
-    );
-
-    let mut max_observed_mismatch_refined = 0.0_f64;
-
-    for tc in &test_cases {
-        let raw_img = image::open(&tc.image_path)?.to_rgba8();
-        let preset = &presets[tc.preset_idx];
-
-        let start = Instant::now();
-        let bg_color = if tc.fixture_name.starts_with("icon_mono.png") {
-            Some(resvg::tiny_skia::Color::WHITE)
+        "Evaluation against MAX_MISMATCH_RATIO = 3.0%: {}",
+        if max_observed_mismatch <= 3.0 {
+            "All test cases pass"
         } else {
-            None
-        };
-        let (svg, rendered) = run_trace(&raw_img, &preset.config, true, tc.is_binary, bg_color)?;
-        let elapsed = start.elapsed().as_millis();
-
-        let ref_img = if tc.fixture_name.starts_with("icon_mono_transparent.png") {
-            apply_p1(&raw_img) // Keep transparent background for comparison
-        } else if tc.is_binary {
-            apply_p3(&apply_p1(&raw_img))
-        } else {
-            apply_p1(&raw_img)
-        };
-
-        let (mismatches, ratio) = compare_images(&ref_img, &rendered);
-        let path_cnt = count_paths(&svg);
-
-        if ratio > max_observed_mismatch_refined {
-            max_observed_mismatch_refined = ratio;
+            "Mismatch exceeds 3.0%"
         }
-
-        println!(
-            "{:<38} | {:<16} | {:>7} | {:>10} | {:>11.2}% | {:>8}ms",
-            tc.fixture_name, preset.name, path_cnt, mismatches, ratio, elapsed
-        );
-    }
-
-    println!(
-        "\nRefined Max Observed Mismatch: {:.2}%",
-        max_observed_mismatch_refined
     );
-    println!("Recommended MAX_MISMATCH_RATIO: 1.0% (or 3.0% with margin)");
 
     Ok(())
 }
