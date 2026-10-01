@@ -1,7 +1,7 @@
 //! Image decoding and format detection logic.
 
 use std::fs::File;
-use std::io::{BufRead, BufReader};
+use std::io::BufReader;
 use std::path::Path;
 
 use image::{DynamicImage, ImageDecoder, ImageError, ImageFormat, ImageReader, Limits, RgbaImage};
@@ -32,32 +32,22 @@ const MAX_ALLOC_BYTES: u64 = 256 * 1024 * 1024;
 /// # Errors
 ///
 /// Returns:
-/// - [`TraceError::ReadFailed`] if the file cannot be opened or read.
+/// - [`TraceError::ReadFailed`] if the file cannot be opened or the initial format detection read fails.
 /// - [`TraceError::UnsupportedFormat`] if the file content format cannot be determined
 ///   or is not among the supported formats.
 /// - [`TraceError::TooLarge`] if the image pixel count exceeds [`MAX_PIXELS`] or decoding
 ///   limits are exceeded.
-/// - [`TraceError::DecodeFailed`] if image decoding fails or dimensions are invalid.
+/// - [`TraceError::DecodeFailed`] if image decoding fails, dimensions are invalid, or data is truncated/corrupt.
 pub fn load_image(path: &Path) -> Result<RgbaImage, TraceError> {
-    let file = File::open(path).map_err(|_| TraceError::ReadFailed)?;
-    let mut buffered = BufReader::new(file);
-
-    // Early dimension check for PNG from the header without requiring full image chunks.
-    // This detects excessive dimensions before any decoding allocation occurs.
-    let peek_buf = buffered.fill_buf().map_err(|_| TraceError::ReadFailed)?;
-    if let Some((width, height)) = peek_png_dimensions(peek_buf) {
-        let pixels = (width as u64).saturating_mul(height as u64);
-        if pixels > MAX_PIXELS {
-            return Err(TraceError::TooLarge);
-        }
-    }
+    let file = File::open(path).map_err(|e| TraceError::ReadFailed(e.to_string()))?;
+    let buffered = BufReader::new(file);
 
     // Initialize reader without inferring format from path extension,
     // ensuring content-based detection.
     let reader = ImageReader::new(buffered);
     let mut reader = reader
         .with_guessed_format()
-        .map_err(|_| TraceError::ReadFailed)?;
+        .map_err(|e| TraceError::ReadFailed(e.to_string()))?;
 
     let format = reader.format().ok_or(TraceError::UnsupportedFormat)?;
 
@@ -93,28 +83,14 @@ pub fn load_image(path: &Path) -> Result<RgbaImage, TraceError> {
     Ok(dynamic_image.to_rgba8())
 }
 
-/// Peeks image dimensions from a PNG header if available in the buffer.
+/// Maps an `image::ImageError` encountered during decoding to the corresponding `TraceError`.
 ///
-/// Returns `Some((width, height))` if the buffer contains a valid PNG signature
-/// and IHDR chunk header with non-zero dimensions.
-fn peek_png_dimensions(buffer: &[u8]) -> Option<(u32, u32)> {
-    const PNG_SIGNATURE: &[u8; 8] = b"\x89PNG\r\n\x1a\n";
-    if buffer.len() >= 24 && &buffer[..8] == PNG_SIGNATURE && &buffer[12..16] == b"IHDR" {
-        let width = u32::from_be_bytes(buffer[16..20].try_into().ok()?);
-        let height = u32::from_be_bytes(buffer[20..24].try_into().ok()?);
-        if width > 0 && height > 0 {
-            return Some((width, height));
-        }
-    }
-    None
-}
-
-/// Maps an `image::ImageError` to the corresponding `TraceError`.
+/// I/O errors occurring during decoding (e.g. truncated files) represent corrupt image data
+/// and are classified as `DecodeFailed`.
 fn map_image_error(err: ImageError) -> TraceError {
     match err {
         ImageError::Limits(_) => TraceError::TooLarge,
         ImageError::Unsupported(_) => TraceError::UnsupportedFormat,
-        ImageError::IoError(_) => TraceError::ReadFailed,
         _ => TraceError::DecodeFailed,
     }
 }

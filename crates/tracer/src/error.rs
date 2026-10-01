@@ -2,8 +2,8 @@
 
 use std::fmt;
 
-/// Errors that can occur during image loading and decoding.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Errors that can occur during image loading, tracing, and conversion.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TraceError {
     /// The image format is not supported.
     UnsupportedFormat,
@@ -12,7 +12,9 @@ pub enum TraceError {
     /// Image pixel count exceeds the maximum limit.
     TooLarge,
     /// Failed to read the image file.
-    ReadFailed,
+    ReadFailed(String),
+    /// VTracer conversion or SVG formatting failed.
+    TraceFailed(String),
 }
 
 impl fmt::Display for TraceError {
@@ -21,7 +23,8 @@ impl fmt::Display for TraceError {
             Self::UnsupportedFormat => write!(f, "Unsupported image format"),
             Self::DecodeFailed => write!(f, "Failed to decode image"),
             Self::TooLarge => write!(f, "Image pixel count exceeds maximum limit"),
-            Self::ReadFailed => write!(f, "Failed to read image file"),
+            Self::ReadFailed(detail) => write!(f, "Failed to read image file: {detail}"),
+            Self::TraceFailed(detail) => write!(f, "Trace failed: {detail}"),
         }
     }
 }

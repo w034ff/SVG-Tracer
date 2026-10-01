@@ -31,8 +31,8 @@ fn crc32(data: &[u8]) -> u32 {
     !crc
 }
 
-/// Generates a valid header-only PNG file (PNG signature + IHDR chunk + IEND chunk)
-/// without any image data (no IDAT chunk). The total size is around 33 bytes.
+/// Generates a valid header-only PNG file (PNG signature + IHDR chunk + empty IDAT chunk + IEND chunk)
+/// without any decompressed image data. The total size is around 45 bytes.
 fn create_header_only_png(width: u32, height: u32) -> (TempFileGuard, PathBuf) {
     static COUNTER: AtomicU64 = AtomicU64::new(0);
     let id = COUNTER.fetch_add(1, Ordering::Relaxed);
@@ -62,7 +62,13 @@ fn create_header_only_png(width: u32, height: u32) -> (TempFileGuard, PathBuf) {
     bytes.extend_from_slice(&ihdr_type_and_data);
     bytes.extend_from_slice(&ihdr_crc.to_be_bytes());
 
-    // 3. IEND Chunk (Length: 0, Type: "IEND", CRC: 4 bytes)
+    // 3. IDAT Chunk with length 0 (Length: 0, Type: "IDAT", CRC: 4 bytes)
+    bytes.extend_from_slice(&0u32.to_be_bytes());
+    bytes.extend_from_slice(b"IDAT");
+    let idat_crc = crc32(b"IDAT");
+    bytes.extend_from_slice(&idat_crc.to_be_bytes());
+
+    // 4. IEND Chunk (Length: 0, Type: "IEND", CRC: 4 bytes)
     bytes.extend_from_slice(&0u32.to_be_bytes());
     bytes.extend_from_slice(b"IEND");
     let iend_crc = crc32(b"IEND");
@@ -158,19 +164,54 @@ fn test_not_image_returns_unsupported_format() {
 }
 
 #[test]
-fn test_nonexistent_file_returns_read_failed() {
+fn test_nonexistent_file_returns_read_failed_with_detail() {
     let nonexistent_path = Path::new("tests/fixtures/does_not_exist_12345.png");
     let result = load_image(nonexistent_path);
-    assert_eq!(result, Err(TraceError::ReadFailed));
+    match result {
+        Err(TraceError::ReadFailed(detail)) => {
+            assert!(
+                !detail.is_empty(),
+                "ReadFailed should contain OS error message detail"
+            );
+        }
+        other => panic!("Expected Err(TraceError::ReadFailed(_)), got: {other:?}"),
+    }
+}
+
+#[test]
+fn test_truncated_files_return_decode_failed() {
+    let dir = fixtures_dir();
+
+    // Truncated PNG: first 100 bytes of logo_color.png (valid signature & IHDR, cut mid-data)
+    let png_bytes =
+        std::fs::read(dir.join("logo_color.png")).expect("Failed to read logo_color.png");
+    let truncated_png_path =
+        std::env::temp_dir().join(format!("test_trunc_{}.png", std::process::id()));
+    std::fs::write(&truncated_png_path, &png_bytes[..100]).expect("Failed to write truncated PNG");
+    let _png_guard = TempFileGuard(truncated_png_path.clone());
+
+    let png_result = load_image(&truncated_png_path);
+    assert_eq!(png_result, Err(TraceError::DecodeFailed));
+
+    // Truncated BMP: first 100 bytes of logo_color.bmp
+    let bmp_bytes =
+        std::fs::read(dir.join("logo_color.bmp")).expect("Failed to read logo_color.bmp");
+    let truncated_bmp_path =
+        std::env::temp_dir().join(format!("test_trunc_{}.bmp", std::process::id()));
+    std::fs::write(&truncated_bmp_path, &bmp_bytes[..100]).expect("Failed to write truncated BMP");
+    let _bmp_guard = TempFileGuard(truncated_bmp_path.clone());
+
+    let bmp_result = load_image(&truncated_bmp_path);
+    assert_eq!(bmp_result, Err(TraceError::DecodeFailed));
 }
 
 #[test]
 fn test_too_large_detected_before_decode_without_large_allocation() {
     // 5000 x 5000 = 25,000,000 pixels > MAX_PIXELS (16_777_216).
-    // The test file contains only the PNG signature, IHDR, and IEND chunks (~33 bytes).
-    // There are NO IDAT image data chunks.
-    // If decoding were attempted before dimension verification, it would fail with DecodeFailed.
-    // Detecting TooLarge confirms that the dimension check succeeds prior to full image decoding.
+    // The test file contains only the PNG signature, IHDR, empty IDAT, and IEND chunks (~45 bytes).
+    // There are NO decompressed image data chunks.
+    // If full decoding were attempted, it would fail or allocate large buffers.
+    // The dimension check before DynamicImage::from_decoder detects TooLarge.
     let (_guard, path) = create_header_only_png(5000, 5000);
 
     let metadata = std::fs::metadata(&path).expect("Failed to get temp file metadata");
@@ -188,7 +229,7 @@ fn test_too_large_detected_before_decode_without_large_allocation() {
 fn test_max_pixels_boundary_check() {
     // 4096 * 4096 = 16_777_216 (exactly MAX_PIXELS).
     // Not exceeding MAX_PIXELS, so it proceeds to decoding, and fails with DecodeFailed
-    // because there is no IDAT chunk.
+    // because there is no decompressed pixel data.
     let (_guard_exact, path_exact) = create_header_only_png(4096, 4096);
     let result_exact = load_image(&path_exact);
     assert_eq!(result_exact, Err(TraceError::DecodeFailed));
