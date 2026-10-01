@@ -1,3 +1,5 @@
+//! Output filename resolution for batch conversion (design §5.3).
+
 use std::collections::HashSet;
 
 /// Resolves unique output SVG filenames for batch conversion (design §5.3).
