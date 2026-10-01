@@ -10,7 +10,9 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     watch: {
-      ignored: ["**/src-tauri/**"],
+      // The Cargo workspace puts its build output in the root `target/`. On Windows,
+      // watching files that rustc holds open fails with EBUSY and stops the dev server.
+      ignored: ["**/src-tauri/**", "**/crates/**", "**/target/**"],
     },
   },
   test: {
