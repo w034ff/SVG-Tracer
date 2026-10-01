@@ -253,9 +253,198 @@ pub fn save_svg_atomic(
     }
 }
 
-/// Executes batch conversion over `input_dir` and writes results to `output_dir`.
-///
-/// Decoupled from Tauri runtime to enable direct unit testing.
+/// Prepared batch configuration ready for execution on a background worker thread.
+pub struct PreparedBatch {
+    pub output_dir: PathBuf,
+    pub params: TraceParams,
+    pub tasks: Vec<(String, String, PathBuf)>,
+    pub used_names_lower: Arc<Mutex<HashSet<String>>>,
+    pub pool: rayon::ThreadPool,
+}
+
+impl PreparedBatch {
+    /// Prepares batch conversion before spawning a background thread.
+    ///
+    /// Enumerates target files, inspects the output directory, resolves output names,
+    /// and initializes the thread pool synchronously so that directory traversal and setup
+    /// failures are returned directly from `start_batch` per design §5.2.
+    pub fn prepare(
+        input_dir: &Path,
+        output_dir: &Path,
+        params: TraceParams,
+    ) -> Result<Self, IpcError> {
+        let (targets, _ignored) = enumerate_targets(input_dir)
+            .map_err(|e| IpcError::new(ErrorCode::ReadFailed, e.to_string()))?;
+
+        let existing = list_existing_files(output_dir)
+            .map_err(|e| IpcError::new(ErrorCode::WriteFailed, e.to_string()))?;
+
+        let output_names = tracer::resolve_output_names(&targets, &existing);
+
+        let mut initial_used: HashSet<String> = existing.iter().map(|s| s.to_lowercase()).collect();
+        for name in &output_names {
+            initial_used.insert(name.to_lowercase());
+        }
+        let used_names_lower = Arc::new(Mutex::new(initial_used));
+
+        let tasks: Vec<(String, String, PathBuf)> = targets
+            .into_iter()
+            .zip(output_names)
+            .map(|(target, out_name)| {
+                let path = input_dir.join(&target);
+                (target, out_name, path)
+            })
+            .collect();
+
+        let num_cpus = std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(1);
+        let num_threads = num_cpus.saturating_sub(1).max(1);
+
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(num_threads)
+            .build()
+            .map_err(|e| IpcError::new(ErrorCode::TraceFailed, e.to_string()))?;
+
+        Ok(Self {
+            output_dir: output_dir.to_path_buf(),
+            params,
+            tasks,
+            used_names_lower,
+            pool,
+        })
+    }
+
+    /// Executes the prepared batch conversion.
+    ///
+    /// Runs on a dedicated thread and reports item results and completion via callbacks.
+    /// Does not return `Result` because all pre-flight errors are caught during `prepare`.
+    pub fn run<FProg, FItem, FFin>(
+        self,
+        cancel_flag: Arc<AtomicBool>,
+        is_running: Arc<AtomicBool>,
+        callbacks: BatchCallbacks<FProg, FItem, FFin>,
+    ) where
+        FProg: Fn(BatchProgressPayload) + Send + Sync + 'static,
+        FItem: Fn(BatchItemPayload) + Send + Sync + 'static,
+        FFin: FnOnce(BatchFinishedPayload) + Send + Sync + 'static,
+    {
+        let on_progress = callbacks.on_progress;
+        let on_item = callbacks.on_item;
+        let on_finished = callbacks.on_finished;
+
+        let total = self.tasks.len();
+        let done = Arc::new(AtomicUsize::new(0));
+        let succeeded = Arc::new(AtomicUsize::new(0));
+        let failed = Arc::new(AtomicUsize::new(0));
+        let skipped = Arc::new(AtomicUsize::new(0));
+
+        on_progress(BatchProgressPayload {
+            done: 0,
+            total,
+            current: None,
+        });
+
+        if total == 0 {
+            is_running.store(false, Ordering::SeqCst);
+            on_finished(BatchFinishedPayload {
+                succeeded: 0,
+                failed: 0,
+                skipped: 0,
+                cancelled: cancel_flag.load(Ordering::SeqCst),
+            });
+            return;
+        }
+
+        let output_dir = self.output_dir;
+        let params = self.params;
+        let used_names_lower = self.used_names_lower;
+
+        self.pool.install(|| {
+            self.tasks
+                .into_par_iter()
+                .for_each(|(name, planned_output_name, input_path)| {
+                    if cancel_flag.load(Ordering::SeqCst) {
+                        skipped.fetch_add(1, Ordering::SeqCst);
+                        return;
+                    }
+
+                    on_progress(BatchProgressPayload {
+                        done: done.load(Ordering::SeqCst),
+                        total,
+                        current: Some(name.clone()),
+                    });
+
+                    let stem = match name.rfind('.') {
+                        Some(idx) => &name[..idx],
+                        None => &name,
+                    };
+
+                    let result = (|| -> Result<String, IpcError> {
+                        let image = tracer::load_image(&input_path)?;
+                        let trace_out = tracer::trace(&image, &params)?;
+                        save_svg_atomic(
+                            &output_dir,
+                            stem,
+                            &planned_output_name,
+                            &trace_out.svg,
+                            &used_names_lower,
+                        )
+                    })();
+
+                    match result {
+                        Ok(saved_name) => {
+                            succeeded.fetch_add(1, Ordering::SeqCst);
+                            let current_done = done.fetch_add(1, Ordering::SeqCst) + 1;
+                            on_item(BatchItemPayload {
+                                name,
+                                status: BatchItemStatus::Ok,
+                                output_name: Some(saved_name),
+                                error: None,
+                            });
+                            on_progress(BatchProgressPayload {
+                                done: current_done,
+                                total,
+                                current: None,
+                            });
+                        }
+                        Err(err) => {
+                            failed.fetch_add(1, Ordering::SeqCst);
+                            let current_done = done.fetch_add(1, Ordering::SeqCst) + 1;
+                            on_item(BatchItemPayload {
+                                name,
+                                status: BatchItemStatus::Failed,
+                                output_name: None,
+                                error: Some(err),
+                            });
+                            on_progress(BatchProgressPayload {
+                                done: current_done,
+                                total,
+                                current: None,
+                            });
+                        }
+                    }
+                });
+        });
+
+        let cancelled = cancel_flag.load(Ordering::SeqCst);
+        let final_succeeded = succeeded.load(Ordering::SeqCst);
+        let final_failed = failed.load(Ordering::SeqCst);
+        let final_skipped = skipped.load(Ordering::SeqCst);
+
+        is_running.store(false, Ordering::SeqCst);
+
+        on_finished(BatchFinishedPayload {
+            succeeded: final_succeeded,
+            failed: final_failed,
+            skipped: final_skipped,
+            cancelled,
+        });
+    }
+}
+
+/// Convenience function to prepare and execute batch conversion synchronously on the current thread,
+/// or used for decoupled unit testing.
 pub fn run_batch<FProg, FItem, FFin>(
     input_dir: PathBuf,
     output_dir: PathBuf,
@@ -269,147 +458,15 @@ where
     FItem: Fn(BatchItemPayload) + Send + Sync + 'static,
     FFin: FnOnce(BatchFinishedPayload) + Send + Sync + 'static,
 {
-    let on_progress = callbacks.on_progress;
-    let on_item = callbacks.on_item;
-    let on_finished = callbacks.on_finished;
+    let prepared = match PreparedBatch::prepare(&input_dir, &output_dir, params) {
+        Ok(p) => p,
+        Err(err) => {
+            is_running.store(false, Ordering::SeqCst);
+            return Err(err);
+        }
+    };
 
-    let (targets, _ignored) = enumerate_targets(&input_dir)
-        .map_err(|e| IpcError::new(ErrorCode::ReadFailed, e.to_string()))?;
-
-    let existing = list_existing_files(&output_dir)
-        .map_err(|e| IpcError::new(ErrorCode::WriteFailed, e.to_string()))?;
-
-    let output_names = tracer::resolve_output_names(&targets, &existing);
-
-    let mut initial_used: HashSet<String> = existing.iter().map(|s| s.to_lowercase()).collect();
-    for name in &output_names {
-        initial_used.insert(name.to_lowercase());
-    }
-    let used_names_lower = Arc::new(Mutex::new(initial_used));
-
-    let total = targets.len();
-    let done = Arc::new(AtomicUsize::new(0));
-    let succeeded = Arc::new(AtomicUsize::new(0));
-    let failed = Arc::new(AtomicUsize::new(0));
-    let skipped = Arc::new(AtomicUsize::new(0));
-
-    on_progress(BatchProgressPayload {
-        done: 0,
-        total,
-        current: None,
-    });
-
-    if total == 0 {
-        is_running.store(false, Ordering::SeqCst);
-        on_finished(BatchFinishedPayload {
-            succeeded: 0,
-            failed: 0,
-            skipped: 0,
-            cancelled: cancel_flag.load(Ordering::SeqCst),
-        });
-        return Ok(());
-    }
-
-    let tasks: Vec<(String, String, PathBuf)> = targets
-        .into_iter()
-        .zip(output_names)
-        .map(|(target, out_name)| {
-            let path = input_dir.join(&target);
-            (target, out_name, path)
-        })
-        .collect();
-
-    let num_cpus = std::thread::available_parallelism()
-        .map(|n| n.get())
-        .unwrap_or(1);
-    let num_threads = num_cpus.saturating_sub(1).max(1);
-
-    let pool = rayon::ThreadPoolBuilder::new()
-        .num_threads(num_threads)
-        .build()
-        .map_err(|e| IpcError::new(ErrorCode::TraceFailed, e.to_string()))?;
-
-    pool.install(|| {
-        tasks
-            .into_par_iter()
-            .for_each(|(name, planned_output_name, input_path)| {
-                if cancel_flag.load(Ordering::SeqCst) {
-                    skipped.fetch_add(1, Ordering::SeqCst);
-                    return;
-                }
-
-                on_progress(BatchProgressPayload {
-                    done: done.load(Ordering::SeqCst),
-                    total,
-                    current: Some(name.clone()),
-                });
-
-                let stem = match name.rfind('.') {
-                    Some(idx) => &name[..idx],
-                    None => &name,
-                };
-
-                let result = (|| -> Result<String, IpcError> {
-                    let image = tracer::load_image(&input_path)?;
-                    let trace_out = tracer::trace(&image, &params)?;
-                    save_svg_atomic(
-                        &output_dir,
-                        stem,
-                        &planned_output_name,
-                        &trace_out.svg,
-                        &used_names_lower,
-                    )
-                })();
-
-                match result {
-                    Ok(saved_name) => {
-                        succeeded.fetch_add(1, Ordering::SeqCst);
-                        let current_done = done.fetch_add(1, Ordering::SeqCst) + 1;
-                        on_item(BatchItemPayload {
-                            name,
-                            status: BatchItemStatus::Ok,
-                            output_name: Some(saved_name),
-                            error: None,
-                        });
-                        on_progress(BatchProgressPayload {
-                            done: current_done,
-                            total,
-                            current: None,
-                        });
-                    }
-                    Err(err) => {
-                        failed.fetch_add(1, Ordering::SeqCst);
-                        let current_done = done.fetch_add(1, Ordering::SeqCst) + 1;
-                        on_item(BatchItemPayload {
-                            name,
-                            status: BatchItemStatus::Failed,
-                            output_name: None,
-                            error: Some(err),
-                        });
-                        on_progress(BatchProgressPayload {
-                            done: current_done,
-                            total,
-                            current: None,
-                        });
-                    }
-                }
-            });
-    });
-
-    let cancelled = cancel_flag.load(Ordering::SeqCst);
-    let final_succeeded = succeeded.load(Ordering::SeqCst);
-    let final_failed = failed.load(Ordering::SeqCst);
-    let final_skipped = skipped.load(Ordering::SeqCst);
-
-    is_running.store(false, Ordering::SeqCst);
-
-    on_finished(BatchFinishedPayload {
-        succeeded: final_succeeded,
-        failed: final_failed,
-        skipped: final_skipped,
-        cancelled,
-    });
-
+    prepared.run(cancel_flag, is_running, callbacks);
     Ok(())
 }
 
@@ -457,6 +514,10 @@ pub fn select_batch_output_internal(
 }
 
 /// Starts batch execution given parameters and state, validating inputs and rejecting if already running.
+///
+/// Prepares target enumeration, directory checks, and thread pool synchronously before spawning
+/// a background worker thread. If any setup fails, `is_running` is reset to false and the error
+/// is returned directly to the caller per review requirements.
 pub fn start_batch_internal<FProg, FItem, FFin>(
     params: TraceParams,
     batch_state: &BatchState,
@@ -496,21 +557,19 @@ where
 
     batch_state.cancel_flag.store(false, Ordering::SeqCst);
 
+    let prepared = match PreparedBatch::prepare(&input_dir, &output_dir, params) {
+        Ok(prepared) => prepared,
+        Err(err) => {
+            batch_state.is_running.store(false, Ordering::SeqCst);
+            return Err(err);
+        }
+    };
+
     let cancel_flag = Arc::clone(&batch_state.cancel_flag);
     let is_running = Arc::clone(&batch_state.is_running);
 
     std::thread::spawn(move || {
-        let res = run_batch(
-            input_dir,
-            output_dir,
-            params,
-            cancel_flag,
-            Arc::clone(&is_running),
-            callbacks,
-        );
-        if res.is_err() {
-            is_running.store(false, Ordering::SeqCst);
-        }
+        prepared.run(cancel_flag, is_running, callbacks);
     });
 
     Ok(())

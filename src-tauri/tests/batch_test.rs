@@ -380,3 +380,79 @@ fn test_start_batch_rejected_when_running_or_invalid() {
         .expect_err("should fail when already running");
     assert_eq!(err.code, ErrorCode::BatchRunning);
 }
+
+#[test]
+fn test_start_batch_rejected_when_input_dir_deleted() {
+    let state = BatchState::new();
+
+    let input_dir = tempfile::tempdir().expect("failed temp dir");
+    let output_dir = tempfile::tempdir().expect("failed temp dir");
+
+    let input_path = input_dir.path().to_path_buf();
+    let output_path = output_dir.path().to_path_buf();
+
+    select_batch_input_internal(input_path.clone(), &state).expect("select input must succeed");
+    select_batch_output_internal(output_path, &state);
+
+    // Delete the input directory after selection
+    drop(input_dir);
+
+    let dummy_callbacks = || BatchCallbacks {
+        on_progress: |_| {},
+        on_item: |_| {},
+        on_finished: |_| {},
+    };
+
+    let err = start_batch_internal(TraceParams::default(), &state, dummy_callbacks())
+        .expect_err("start_batch_internal should fail synchronously on deleted input dir");
+
+    assert_eq!(err.code, ErrorCode::ReadFailed);
+    assert!(
+        !state.is_running.load(Ordering::SeqCst),
+        "is_running must be reset to false when start_batch preparation fails"
+    );
+}
+
+#[test]
+fn test_save_svg_atomic_avoids_assigned_names_in_same_batch() {
+    let output_dir = tempfile::tempdir().expect("failed to create temp output dir");
+
+    // Pre-create only icon.svg on disk
+    let target_name = "icon.svg";
+    let pre_existing_path = output_dir.path().join(target_name);
+    fs::write(&pre_existing_path, "pre-existing-disk-content").expect("write failed");
+
+    // icon (1).svg is not on disk, but was already assigned to another input in this batch
+    let mut used_set = HashSet::new();
+    used_set.insert("icon (1).svg".to_string());
+    let used_names_lower = Mutex::new(used_set);
+
+    let saved_name = save_svg_atomic(
+        output_dir.path(),
+        "icon",
+        target_name,
+        "<svg>new-content</svg>",
+        &used_names_lower,
+    )
+    .expect("save_svg_atomic should succeed");
+
+    // Must jump to icon (2).svg avoiding both disk-existing icon.svg and assigned icon (1).svg
+    assert_eq!(saved_name, "icon (2).svg");
+
+    // Verify icon.svg remains unchanged
+    assert_eq!(
+        fs::read_to_string(&pre_existing_path).expect("read failed"),
+        "pre-existing-disk-content"
+    );
+
+    // Verify icon (1).svg was never created
+    assert!(!output_dir.path().join("icon (1).svg").exists());
+
+    // Verify icon (2).svg was created with new content
+    let created_path = output_dir.path().join("icon (2).svg");
+    assert!(created_path.exists());
+    assert_eq!(
+        fs::read_to_string(&created_path).expect("read failed"),
+        "<svg>new-content</svg>"
+    );
+}
