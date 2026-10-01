@@ -6,8 +6,8 @@ import {
 } from "react";
 import type { Language } from "../i18n";
 import { translations } from "../i18n";
-import type { ParamSpec } from "../ipc";
-import { getParamSpec } from "../ipc";
+import type { IpcError, ParamSpec } from "../ipc";
+import { getParamSpec, normalizeIpcError } from "../ipc";
 import {
   batchConversionReducer,
   createInitialBatchConversionState,
@@ -62,9 +62,11 @@ export function LanguageProvider({
 export function ParamsProvider({
   children,
   initialSpec,
+  initialError,
 }: {
   children: ReactNode;
   initialSpec?: ParamSpec;
+  initialError?: IpcError;
 }): ReactElement {
   const [state, dispatch] = useReducer(
     paramsReducer,
@@ -73,6 +75,10 @@ export function ParamsProvider({
   );
 
   useEffect(() => {
+    if (initialError) {
+      dispatch({ type: "INIT_ERROR", error: initialError });
+      return;
+    }
     if (initialSpec) {
       return;
     }
@@ -84,13 +90,16 @@ export function ParamsProvider({
         }
       })
       .catch((error: unknown) => {
-        console.error("Failed to load parameter specifications:", error);
+        if (isMounted) {
+          const normalized = normalizeIpcError(error);
+          dispatch({ type: "INIT_ERROR", error: normalized });
+        }
       });
 
     return () => {
       isMounted = false;
     };
-  }, [initialSpec]);
+  }, [initialSpec, initialError]);
 
   return (
     <ParamsContext.Provider value={{ state, dispatch }}>
@@ -141,14 +150,19 @@ export function AppProviders({
   children,
   initialSpec,
   initialLanguage,
+  initialParamError,
 }: {
   children: ReactNode;
   initialSpec?: ParamSpec;
   initialLanguage?: Language;
+  initialParamError?: IpcError;
 }): ReactElement {
   return (
     <LanguageProvider initialLanguage={initialLanguage}>
-      <ParamsProvider initialSpec={initialSpec}>
+      <ParamsProvider
+        initialSpec={initialSpec}
+        initialError={initialParamError}
+      >
         <SingleConversionProvider>
           <BatchConversionProvider>{children}</BatchConversionProvider>
         </SingleConversionProvider>

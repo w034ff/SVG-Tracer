@@ -46,4 +46,5 @@ export const en: TranslationKeys = {
   errorBatchRunning: "Batch conversion is already running",
   errorUnknownHandle: "Image handle not found",
   errorInvalidParams: "Invalid parameters",
+  paramSpecLoadFailed: "Failed to load parameter settings",
 };

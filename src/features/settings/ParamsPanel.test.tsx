@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import type { ParamSpec, TraceParams } from "../../ipc";
+import type { IpcError, ParamSpec, TraceParams } from "../../ipc";
 import { LanguageProvider, ParamsProvider } from "../../state";
 import { ParamsPanel } from "./ParamsPanel";
 
@@ -61,10 +61,17 @@ const TEST_SPEC: ParamSpec = {
   defaultPreset: "colorLogo",
 };
 
-function renderParamsPanel(spec: ParamSpec = TEST_SPEC) {
+function renderParamsPanel(options?: {
+  spec?: ParamSpec;
+  error?: IpcError;
+  language?: "ja" | "en";
+}) {
   return render(
-    <LanguageProvider initialLanguage="ja">
-      <ParamsProvider initialSpec={spec}>
+    <LanguageProvider initialLanguage={options?.language ?? "ja"}>
+      <ParamsProvider
+        initialSpec={options?.error ? undefined : (options?.spec ?? TEST_SPEC)}
+        initialError={options?.error}
+      >
         <ParamsPanel />
       </ParamsProvider>
     </LanguageProvider>,
@@ -72,6 +79,32 @@ function renderParamsPanel(spec: ParamSpec = TEST_SPEC) {
 }
 
 describe("ParamsPanel", () => {
+  it("displays localized error message when get_param_spec fails in Japanese", () => {
+    const error: IpcError = {
+      code: "ReadFailed",
+      detail: "Config file inaccessible",
+    };
+    renderParamsPanel({ error, language: "ja" });
+
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+    expect(
+      screen.getByText("パラメータ設定の読み込みに失敗しました"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Config file inaccessible")).toBeInTheDocument();
+  });
+
+  it("displays localized error message when get_param_spec fails in English", () => {
+    const error: IpcError = {
+      code: "ReadFailed",
+      detail: null,
+    };
+    renderParamsPanel({ error, language: "en" });
+
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+    expect(
+      screen.getByText("Failed to load parameter settings"),
+    ).toBeInTheDocument();
+  });
   it("uses ranges from get_param_spec and named step constants for sliders", () => {
     renderParamsPanel();
 

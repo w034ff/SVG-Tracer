@@ -1,7 +1,7 @@
 import { useState, type ChangeEvent, type ReactElement } from "react";
 import { ParamsPanel } from "./features/settings/ParamsPanel";
 import type { Language } from "./i18n";
-import type { ParamSpec } from "./ipc";
+import type { IpcError, ParamSpec } from "./ipc";
 import { AppProviders, useLanguage } from "./state";
 import "./styles/app.css";
 
@@ -104,14 +104,20 @@ function AppContent(): ReactElement {
 export type AppProps = {
   initialSpec?: ParamSpec;
   initialLanguage?: Language;
+  initialParamError?: IpcError;
 };
 
 export function App({
   initialSpec,
   initialLanguage,
+  initialParamError,
 }: AppProps = {}): ReactElement {
   return (
-    <AppProviders initialSpec={initialSpec} initialLanguage={initialLanguage}>
+    <AppProviders
+      initialSpec={initialSpec}
+      initialLanguage={initialLanguage}
+      initialParamError={initialParamError}
+    >
       <AppContent />
     </AppProviders>
   );

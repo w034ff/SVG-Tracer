@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ParamSpec, TraceParams } from "../ipc";
+import type { IpcError, ParamSpec, TraceParams } from "../ipc";
 import {
   batchConversionReducer,
   createInitialBatchConversionState,
@@ -81,6 +81,15 @@ describe("reducers", () => {
       expect(state.preset).toBe("colorLogo");
       expect(state.params).toEqual(COLOR_LOGO_PARAMS);
       expect(state.isAdvancedOpen).toBe(false);
+      expect(state.error).toBeNull();
+    });
+
+    it("records error on INIT_ERROR", () => {
+      const initial = createInitialParamsState(null);
+      const error: IpcError = { code: "ReadFailed", detail: "File read error" };
+      const state = paramsReducer(initial, { type: "INIT_ERROR", error });
+      expect(state.error).toEqual(error);
+      expect(state.spec).toBeNull();
     });
 
     it("populates values when a preset is selected", () => {

@@ -44,4 +44,5 @@ export const ja = {
   errorBatchRunning: "一括変換が既に実行中です",
   errorUnknownHandle: "画像ハンドルが見つかりません",
   errorInvalidParams: "無効なパラメータです",
+  paramSpecLoadFailed: "パラメータ設定の読み込みに失敗しました",
 };

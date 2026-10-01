@@ -32,21 +32,26 @@ export type { PresetSpec } from "./generated/PresetSpec";
 export type { SaveSvgResult } from "./generated/SaveSvgResult";
 export type { TraceParams } from "./generated/TraceParams";
 
+const ERROR_CODES = {
+  UnsupportedFormat: true,
+  DecodeFailed: true,
+  TooLarge: true,
+  ReadFailed: true,
+  WriteFailed: true,
+  TraceFailed: true,
+  Superseded: true,
+  BatchRunning: true,
+  UnknownHandle: true,
+  InvalidParams: true,
+} satisfies Record<ErrorCode, true>;
+
 /**
  * Type guard checking whether a value is a valid IPC ErrorCode per design §5.5.
  */
 export function isErrorCode(value: unknown): value is ErrorCode {
   return (
-    value === "UnsupportedFormat" ||
-    value === "DecodeFailed" ||
-    value === "TooLarge" ||
-    value === "ReadFailed" ||
-    value === "WriteFailed" ||
-    value === "TraceFailed" ||
-    value === "Superseded" ||
-    value === "BatchRunning" ||
-    value === "UnknownHandle" ||
-    value === "InvalidParams"
+    typeof value === "string" &&
+    Object.prototype.hasOwnProperty.call(ERROR_CODES, value)
   );
 }
 

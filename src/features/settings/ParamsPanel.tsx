@@ -6,7 +6,18 @@ import { INTEGER_PARAM_STEP, LENGTH_THRESHOLD_STEP } from "./constants";
 export function ParamsPanel(): ReactElement {
   const { t } = useLanguage();
   const { state, dispatch } = useParams();
-  const { spec, params, preset, isAdvancedOpen } = state;
+  const { spec, params, preset, isAdvancedOpen, error } = state;
+
+  if (error) {
+    return (
+      <aside className="app-aside" role="alert">
+        <div className="field">
+          <span className="field-head">{t.paramSpecLoadFailed}</span>
+          {error.detail && <span className="val">{error.detail}</span>}
+        </div>
+      </aside>
+    );
+  }
 
   if (!spec || !params) {
     return (
@@ -171,10 +182,9 @@ export function ParamsPanel(): ReactElement {
       {/* Advanced toggle */}
       <button
         type="button"
-        className="btn"
+        className="btn btn-advanced"
         aria-expanded={isAdvancedOpen}
         onClick={() => dispatch({ type: "TOGGLE_ADVANCED" })}
-        style={{ width: "100%", justifyContent: "space-between" }}
       >
         <span>{t.advanced}</span>
         <svg

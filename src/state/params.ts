@@ -1,4 +1,4 @@
-import type { ParamSpec, Preset, TraceParams } from "../ipc";
+import type { IpcError, ParamSpec, Preset, TraceParams } from "../ipc";
 
 export type PresetSelection = Preset | "custom";
 
@@ -7,6 +7,7 @@ export type ParamsState = {
   preset: PresetSelection;
   params: TraceParams | null;
   isAdvancedOpen: boolean;
+  error: IpcError | null;
 };
 
 export type ParamsAction =
@@ -15,6 +16,10 @@ export type ParamsAction =
       spec: ParamSpec;
       initialPreset?: PresetSelection;
       initialParams?: TraceParams;
+    }
+  | {
+      type: "INIT_ERROR";
+      error: IpcError;
     }
   | {
       type: "SET_PRESET";
@@ -40,6 +45,7 @@ export function createInitialParamsState(spec?: ParamSpec | null): ParamsState {
       preset: "colorLogo",
       params: null,
       isAdvancedOpen: false,
+      error: null,
     };
   }
 
@@ -51,6 +57,7 @@ export function createInitialParamsState(spec?: ParamSpec | null): ParamsState {
     preset: defaultPreset,
     params: matched ? { ...matched.params } : null,
     isAdvancedOpen: false,
+    error: null,
   };
 }
 
@@ -66,6 +73,7 @@ export function paramsReducer(
           spec: action.spec,
           preset: action.initialPreset,
           params: { ...action.initialParams },
+          error: null,
         };
       }
       const defaultPreset = action.spec.defaultPreset;
@@ -75,6 +83,13 @@ export function paramsReducer(
         spec: action.spec,
         preset: defaultPreset,
         params: matched ? { ...matched.params } : null,
+        error: null,
+      };
+    }
+    case "INIT_ERROR": {
+      return {
+        ...state,
+        error: action.error,
       };
     }
     case "SET_PRESET": {

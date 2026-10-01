@@ -88,4 +88,22 @@ describe("App", () => {
     expect(screen.getByLabelText("Language")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "About" })).toBeInTheDocument();
   });
+
+  it("displays localized error message when getParamSpec fails", () => {
+    render(
+      <App
+        initialLanguage="ja"
+        initialParamError={{
+          code: "ReadFailed",
+          detail: "Backend read error",
+        }}
+      />,
+    );
+
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+    expect(
+      screen.getByText("パラメータ設定の読み込みに失敗しました"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Backend read error")).toBeInTheDocument();
+  });
 });
