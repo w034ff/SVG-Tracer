@@ -40,6 +40,10 @@ pub fn run() {
             if let tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Drop { paths, .. }) = event {
                 let state = window.state::<AppState>();
                 let payload = handle_drag_drop_event(paths, &state);
+                #[cfg(debug_assertions)]
+                if let commands::ImageDroppedPayload::Success { ref id, ref name } = payload {
+                    eprintln!("[debug] DragDrop: name={}, id={}", name, id);
+                }
                 let _ = window.emit("image-dropped", &payload);
             }
         })

@@ -82,7 +82,8 @@ pub struct ConvertResult {
     /// Size of the generated SVG in bytes.
     pub bytes: usize,
     /// Time taken to vectorize the image in milliseconds.
-    pub elapsed_ms: u64,
+    #[ts(type = "number")]
+    pub elapsed_ms: u32,
 }
 
 /// Result returned by [`save_svg`].
@@ -191,14 +192,14 @@ pub async fn load_preview_internal(id: &str, state: &AppState) -> Result<Vec<u8>
         .ok_or_else(|| IpcError::from_code(ErrorCode::UnknownHandle))?;
 
     if let Some(preview_png) = handle.preview_png {
-        return Ok(preview_png);
+        return Ok(preview_png.to_vec());
     }
 
     let handles_ref = Arc::clone(&state.handles);
     let id_clone = id.to_string();
     let path = handle.path.clone();
 
-    let png_bytes = tauri::async_runtime::spawn_blocking(move || -> Result<Vec<u8>, IpcError> {
+    let png_bytes = tauri::async_runtime::spawn_blocking(move || -> Result<Arc<[u8]>, IpcError> {
         let image = match handle.image {
             Some(img) => img,
             None => {
@@ -208,13 +209,14 @@ pub async fn load_preview_internal(id: &str, state: &AppState) -> Result<Vec<u8>
         };
 
         let bytes = tracer::encode_png(&image)?;
-        handles_ref.set_image_and_preview(&id_clone, image, bytes.clone());
-        Ok(bytes)
+        let arc_bytes: Arc<[u8]> = Arc::from(bytes.into_boxed_slice());
+        handles_ref.set_image_and_preview(&id_clone, image, Arc::clone(&arc_bytes));
+        Ok(arc_bytes)
     })
     .await
     .map_err(|e| IpcError::new(ErrorCode::DecodeFailed, e.to_string()))??;
 
-    Ok(png_bytes)
+    Ok(png_bytes.to_vec())
 }
 
 /// Converts the image for the specified handle into SVG per design §5.1.
@@ -280,14 +282,15 @@ pub async fn convert_internal(
 
             let start = std::time::Instant::now();
             let output = tracer::trace(&image, &params)?;
-            let elapsed_ms = start.elapsed().as_millis() as u64;
+            let elapsed_ms = start.elapsed().as_millis() as u32;
             let bytes = output.svg.len();
 
             if seq < latest_seq_ref.load(Ordering::SeqCst) {
                 return Err(IpcError::from_code(ErrorCode::Superseded));
             }
 
-            handles_ref.set_last_svg(&id_clone, output.svg.clone());
+            let arc_svg: Arc<str> = Arc::from(output.svg.as_str());
+            handles_ref.set_last_svg(&id_clone, arc_svg);
 
             Ok(ConvertResult {
                 svg: output.svg,

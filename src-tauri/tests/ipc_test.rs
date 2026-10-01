@@ -31,27 +31,6 @@ fn test_convert_superseded_older_sequence_rejected_before_trace() {
 }
 
 #[test]
-fn test_convert_superseded_mid_flight() {
-    tauri::async_runtime::block_on(async {
-        let state = AppState::default();
-        let fixture = fixtures_dir().join("logo_color.png");
-        let (id, _) = state.handles.register(fixture);
-
-        // Initial seq = 1
-        state.latest_seq.store(1, Ordering::SeqCst);
-
-        // Now update seq to 2 before running convert with seq = 1
-        state.latest_seq.store(2, Ordering::SeqCst);
-
-        let err = convert_internal(id, TraceParams::default(), 1, &state)
-            .await
-            .expect_err("superseded sequence should fail");
-
-        assert_eq!(err.code, ErrorCode::Superseded);
-    });
-}
-
-#[test]
 fn test_convert_success_with_latest_seq() {
     tauri::async_runtime::block_on(async {
         let state = AppState::default();
@@ -70,7 +49,7 @@ fn test_convert_success_with_latest_seq() {
 
         // Verify last_svg was recorded in the handle store
         let handle = state.handles.get(&id).expect("handle should exist");
-        assert_eq!(handle.last_svg, Some(result.svg));
+        assert_eq!(handle.last_svg.as_deref(), Some(result.svg.as_str()));
     });
 }
 

@@ -1,0 +1,16 @@
+export type { ColorMode } from "./generated/ColorMode";
+export type { ConvertResult } from "./generated/ConvertResult";
+export type { CurveMode } from "./generated/CurveMode";
+export type { ErrorCode } from "./generated/ErrorCode";
+export type { FloatRange } from "./generated/FloatRange";
+export type { Hierarchical } from "./generated/Hierarchical";
+export type { ImageDroppedPayload } from "./generated/ImageDroppedPayload";
+export type { IntRange } from "./generated/IntRange";
+export type { IpcError } from "./generated/IpcError";
+export type { ParamRanges } from "./generated/ParamRanges";
+export type { ParamSpec } from "./generated/ParamSpec";
+export type { PickedImage } from "./generated/PickedImage";
+export type { Preset } from "./generated/Preset";
+export type { PresetSpec } from "./generated/PresetSpec";
+export type { SaveSvgResult } from "./generated/SaveSvgResult";
+export type { TraceParams } from "./generated/TraceParams";

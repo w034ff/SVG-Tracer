@@ -19,4 +19,4 @@ bytes: number,
 /**
  * Time taken to vectorize the image in milliseconds.
  */
-elapsedMs: bigint, };
+elapsedMs: number, };

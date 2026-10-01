@@ -19,9 +19,9 @@ pub struct ImageHandle {
     /// Decoded image buffer, cached to avoid re-decoding from disk on parameter tweaks.
     pub image: Option<Arc<RgbaImage>>,
     /// Pre-rendered PNG preview binary bytes, returned to frontend via `load_preview`.
-    pub preview_png: Option<Vec<u8>>,
+    pub preview_png: Option<Arc<[u8]>>,
     /// Most recent vectorization result SVG string, written to disk by `save_svg`.
-    pub last_svg: Option<String>,
+    pub last_svg: Option<Arc<str>>,
 }
 
 /// Thread-safe storage for active image handles.
@@ -38,6 +38,9 @@ impl HandleStore {
     }
 
     /// Registers a file path and returns its opaque handle ID and display name.
+    ///
+    /// Cleans up cached assets (`image`, `preview_png`, `last_svg`) from previously registered
+    /// handles since single image conversion only works on one active image at a time.
     pub fn register(&self, path: PathBuf) -> (String, String) {
         let id_num = self.counter.fetch_add(1, Ordering::Relaxed);
         let id = format!("handle-{id_num}");
@@ -60,6 +63,14 @@ impl HandleStore {
             .handles
             .lock()
             .expect("HandleStore mutex should not be poisoned");
+
+        // Discard cached data from other handles to avoid holding unused image buffers.
+        for existing in map.values_mut() {
+            existing.image = None;
+            existing.preview_png = None;
+            existing.last_svg = None;
+        }
+
         map.insert(id.clone(), handle);
 
         (id, name)
@@ -93,7 +104,7 @@ impl HandleStore {
         &self,
         id: &str,
         image: Arc<RgbaImage>,
-        preview_png: Vec<u8>,
+        preview_png: Arc<[u8]>,
     ) -> bool {
         let mut map = self
             .handles
@@ -109,7 +120,7 @@ impl HandleStore {
     }
 
     /// Updates the most recent SVG output string for a handle.
-    pub fn set_last_svg(&self, id: &str, svg: String) -> bool {
+    pub fn set_last_svg(&self, id: &str, svg: Arc<str>) -> bool {
         let mut map = self
             .handles
             .lock()
@@ -166,12 +177,31 @@ mod tests {
         let store = HandleStore::new();
         let (id, _) = store.register(PathBuf::from("/test/img.png"));
 
-        let svg_data = "<svg>test</svg>".to_string();
-        assert!(store.set_last_svg(&id, svg_data.clone()));
+        let svg_data: Arc<str> = Arc::from("<svg>test</svg>");
+        assert!(store.set_last_svg(&id, Arc::clone(&svg_data)));
 
         let handle = store.get(&id).expect("handle exists");
         assert_eq!(handle.last_svg, Some(svg_data));
 
-        assert!(!store.set_last_svg("unknown-id", "<svg></svg>".into()));
+        assert!(!store.set_last_svg("unknown-id", Arc::from("<svg></svg>")));
+    }
+
+    #[test]
+    fn test_register_discards_previous_handles_cached_data() {
+        let store = HandleStore::new();
+        let (id1, _) = store.register(PathBuf::from("/test/img1.png"));
+        store.set_last_svg(&id1, Arc::from("<svg>1</svg>"));
+
+        let handle1_before = store.get(&id1).expect("handle1 exists");
+        assert!(handle1_before.last_svg.is_some());
+
+        let (id2, _) = store.register(PathBuf::from("/test/img2.png"));
+        let handle1_after = store.get(&id1).expect("handle1 exists");
+        assert!(handle1_after.last_svg.is_none());
+        assert!(handle1_after.image.is_none());
+        assert!(handle1_after.preview_png.is_none());
+
+        let handle2 = store.get(&id2).expect("handle2 exists");
+        assert_eq!(handle2.id, id2);
     }
 }

@@ -75,7 +75,14 @@ jobs:
         run: cargo test --workspace
 
       - name: Check TypeScript bindings diff
-        run: git diff --exit-code src/ipc/generated/
+        shell: bash
+        run: |
+          status=$(git status --porcelain src/ipc/generated)
+          if [ -n "$status" ]; then
+            echo "Unexpected changes in src/ipc/generated:"
+            echo "$status"
+            exit 1
+          fi
 
       - name: Rust Test (Release Performance)
         run: cargo test -p tracer --release --test quality test_1024x1024_conversion_time
