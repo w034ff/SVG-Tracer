@@ -127,9 +127,11 @@ T02〜T04 は並行して進められる。T09〜T11 も T08 の後に並行で�
 - `handles.rs`、エラーの直列化（§5.5）、ts-rs による型生成の仕組み。
 - コマンド `get_param_spec`、`pick_image`、`load_preview`、`convert`、`save_svg` と、D&D の `image-dropped` イベント（§6）。
 - capabilities と CSP（§7）。`cargo-deny` の `bans` はこのタスクでは不要（T12）。
+- パラメータの範囲検査（§4.5 の `TraceParams::validate`、`trace` からの呼び出し、エラーコード `InvalidParams`）。
 
 完了条件:
 - `convert` の `Superseded` の振る舞い（古い番号の要求が変換前に拒否される）のテスト。
+- 範囲検査のテスト: 各パラメータの最小値・最大値は通り、その外側（整数は ±1、`lengthThreshold` は範囲外の値と `NaN`）は `InvalidParams` になる。
 - ts-rs の生成物がコミットされ、CI で「生成し直すと差分が出ない」ことを確認する手順が動く。
 - capabilities に dialog / fs / shell / opener / http の権限がないこと。どのコマンドもパスを引数に取らないこと（PR の説明にコマンドの一覧と引数を書く）。
 - Windows と Linux で D&D のパスを Rust 側で受け取れることを確認し、PR の説明に書く（design.md §10 の 5）。Windows はオーナーが確認する。
@@ -153,6 +155,7 @@ T02〜T04 は並行して進められる。T09〜T11 も T08 の後に並行で�
 完了条件:
 - 保存 → 読み込みで同じ値に戻るテスト。
 - 壊れた JSON、未知の `schemaVersion`、存在しないフォルダの設定で、既定値（フォルダは未選択）になるテスト。
+- 未知の `preset` や範囲外の `params` を含む設定で、その 2 つだけが既定に戻り、言語とフォルダが残るテスト。`save_settings` に範囲外の `params` を渡すと `InvalidParams` になり保存されないテスト。
 
 ### T08 フロントエンド基盤とパラメータパネル
 
