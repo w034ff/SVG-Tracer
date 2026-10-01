@@ -5,6 +5,7 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
 use serde::{Deserialize, Serialize};
+use tauri::Emitter;
 use tauri_plugin_dialog::DialogExt;
 use tracer::{
     COLOR_PRECISION_MAX, COLOR_PRECISION_MIN, CORNER_THRESHOLD_MAX, CORNER_THRESHOLD_MIN,
@@ -15,6 +16,10 @@ use tracer::{
 use ts_rs::TS;
 
 use crate::AppState;
+use crate::batch::{
+    BatchFinishedPayload, BatchItemPayload, BatchProgressPayload, PickBatchInputResult,
+    PickBatchOutputResult,
+};
 use crate::error::{ErrorCode, IpcError};
 
 /// Integer range specification with minimum and maximum values.
@@ -370,6 +375,84 @@ pub async fn save_svg(
     .map_err(|e| IpcError::new(ErrorCode::WriteFailed, e.to_string()))??;
 
     Ok(Some(SaveSvgResult { saved_name }))
+}
+
+/// Opens an OS folder picker for selecting the batch input folder per design §5.2 and §6.1.
+#[tauri::command]
+pub async fn pick_batch_input(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+) -> Result<Option<PickBatchInputResult>, IpcError> {
+    let folder_path = app.dialog().file().blocking_pick_folder();
+
+    let Some(folder_path) = folder_path else {
+        return Ok(None);
+    };
+
+    let path_buf = folder_path
+        .into_path()
+        .map_err(|e| IpcError::new(ErrorCode::ReadFailed, format!("{e:?}")))?;
+
+    let result = crate::batch::select_batch_input_internal(path_buf, &state.batch)?;
+    Ok(Some(result))
+}
+
+/// Opens an OS folder picker for selecting the batch output folder per design §5.2 and §6.1.
+#[tauri::command]
+pub async fn pick_batch_output(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+) -> Result<Option<PickBatchOutputResult>, IpcError> {
+    let folder_path = app.dialog().file().blocking_pick_folder();
+
+    let Some(folder_path) = folder_path else {
+        return Ok(None);
+    };
+
+    let path_buf = folder_path
+        .into_path()
+        .map_err(|e| IpcError::new(ErrorCode::ReadFailed, format!("{e:?}")))?;
+
+    let result = crate::batch::select_batch_output_internal(path_buf, &state.batch);
+    Ok(Some(result))
+}
+
+/// Initiates batch conversion in a background thread per design §5.2 and §6.1.
+#[tauri::command]
+pub fn start_batch(
+    params: TraceParams,
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+) -> Result<(), IpcError> {
+    let app_for_progress = app.clone();
+    let on_progress = move |payload: BatchProgressPayload| {
+        let _ = app_for_progress.emit("batch-progress", &payload);
+    };
+
+    let app_for_item = app.clone();
+    let on_item = move |payload: BatchItemPayload| {
+        let _ = app_for_item.emit("batch-item", &payload);
+    };
+
+    let app_for_finished = app.clone();
+    let on_finished = move |payload: BatchFinishedPayload| {
+        let _ = app_for_finished.emit("batch-finished", &payload);
+    };
+
+    let callbacks = crate::batch::BatchCallbacks {
+        on_progress,
+        on_item,
+        on_finished,
+    };
+
+    crate::batch::start_batch_internal(params, &state.batch, callbacks)
+}
+
+/// Signals cancellation for any executing batch conversion per design §5.4 and §6.1.
+#[tauri::command]
+pub fn cancel_batch(state: tauri::State<'_, AppState>) -> Result<(), IpcError> {
+    state.batch.cancel_flag.store(true, Ordering::SeqCst);
+    Ok(())
 }
 
 #[cfg(test)]

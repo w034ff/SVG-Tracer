@@ -6,6 +6,7 @@ use std::sync::atomic::AtomicU64;
 use tauri::{Emitter, Manager};
 use tracer::SUPPORTED_EXTENSIONS;
 
+pub mod batch;
 pub mod commands;
 pub mod error;
 pub mod handles;
@@ -17,6 +18,8 @@ pub struct AppState {
     pub handles: Arc<handles::HandleStore>,
     /// Global conversion request sequence counter for tracking Superseded requests per design §5.1.
     pub latest_seq: Arc<AtomicU64>,
+    /// Batch conversion state and folder paths per design §5.2.
+    pub batch: Arc<batch::BatchState>,
 }
 
 /// Runs the Tauri application.
@@ -35,6 +38,10 @@ pub fn run() {
             commands::load_preview,
             commands::convert,
             commands::save_svg,
+            commands::pick_batch_input,
+            commands::pick_batch_output,
+            commands::start_batch,
+            commands::cancel_batch,
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Drop { paths, .. }) = event {

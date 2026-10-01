@@ -1,5 +1,9 @@
 use std::path::Path;
 
+use svg_tracer_lib::batch::{
+    BatchFinishedPayload, BatchItemPayload, BatchItemStatus, BatchProgressPayload,
+    PickBatchInputResult, PickBatchOutputResult,
+};
 use svg_tracer_lib::commands::{
     ConvertResult, ImageDroppedPayload, ParamSpec, PickedImage, SaveSvgResult,
 };
@@ -19,4 +23,11 @@ fn export_typescript_bindings() {
     ConvertResult::export_all(&cfg).expect("Failed to export ConvertResult");
     SaveSvgResult::export_all(&cfg).expect("Failed to export SaveSvgResult");
     ImageDroppedPayload::export_all(&cfg).expect("Failed to export ImageDroppedPayload");
+
+    PickBatchInputResult::export_all(&cfg).expect("Failed to export PickBatchInputResult");
+    PickBatchOutputResult::export_all(&cfg).expect("Failed to export PickBatchOutputResult");
+    BatchProgressPayload::export_all(&cfg).expect("Failed to export BatchProgressPayload");
+    BatchItemStatus::export_all(&cfg).expect("Failed to export BatchItemStatus");
+    BatchItemPayload::export_all(&cfg).expect("Failed to export BatchItemPayload");
+    BatchFinishedPayload::export_all(&cfg).expect("Failed to export BatchFinishedPayload");
 }
