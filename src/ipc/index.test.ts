@@ -213,4 +213,25 @@ describe("ipc wrapper", () => {
       );
     });
   });
+
+  describe("onImageDropped", () => {
+    it("subscribes to image-dropped events and unlistens cleanly", async () => {
+      const { emit } = await import("@tauri-apps/api/event");
+      const { onImageDropped } = await import("./index");
+      mockIPC(() => {}, { shouldMockEvents: true });
+
+      const received: unknown[] = [];
+      const unlisten = await onImageDropped((payload) => {
+        received.push(payload);
+      });
+
+      await emit("image-dropped", { id: "dropped-id-1", name: "test.png" });
+      expect(received).toEqual([{ id: "dropped-id-1", name: "test.png" }]);
+
+      await unlisten();
+
+      await emit("image-dropped", { id: "dropped-id-2", name: "test2.png" });
+      expect(received).toHaveLength(1);
+    });
+  });
 });

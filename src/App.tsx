@@ -1,13 +1,53 @@
-import { useState, type ChangeEvent, type ReactElement } from "react";
+import {
+  useEffect,
+  useState,
+  type ChangeEvent,
+  type ReactElement,
+} from "react";
 import { ParamsPanel } from "./features/settings/ParamsPanel";
+import { SingleConversionView } from "./features/single/SingleConversionView";
 import type { Language } from "./i18n";
-import type { ParamSpec } from "./ipc";
-import { AppProviders, useLanguage } from "./state";
+import { onImageDropped, type ParamSpec, type UnlistenFn } from "./ipc";
+import { AppProviders, useLanguage, useSingleConversion } from "./state";
 import "./styles/app.css";
 
 function AppContent(): ReactElement {
   const { t, state: langState, dispatch: langDispatch } = useLanguage();
+  const { dispatch: singleDispatch } = useSingleConversion();
   const [activeTab, setActiveTab] = useState<"single" | "batch">("single");
+
+  useEffect(() => {
+    let unlistenPromise: Promise<UnlistenFn> | null = null;
+    let isMounted = true;
+
+    unlistenPromise = onImageDropped((payload) => {
+      if (!isMounted) {
+        return;
+      }
+      setActiveTab("single");
+      if ("error" in payload) {
+        singleDispatch({ type: "SET_ERROR", error: payload.error });
+      } else {
+        singleDispatch({
+          type: "SET_IMAGE",
+          image: { id: payload.id, name: payload.name },
+        });
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      if (unlistenPromise) {
+        void unlistenPromise
+          .then((unlisten) => {
+            unlisten();
+          })
+          .catch(() => {
+            // Ignore unlisten errors on teardown
+          });
+      }
+    };
+  }, [singleDispatch]);
 
   function handleLanguageChange(event: ChangeEvent<HTMLSelectElement>): void {
     const nextLang = event.target.value;
@@ -95,7 +135,9 @@ function AppContent(): ReactElement {
           className="app-main"
           role="tabpanel"
           aria-label={activeTab === "single" ? t.tabSingle : t.tabBatch}
-        />
+        >
+          {activeTab === "single" ? <SingleConversionView /> : null}
+        </main>
       </div>
     </div>
   );

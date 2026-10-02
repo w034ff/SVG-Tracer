@@ -1,5 +1,7 @@
 import { ja } from "./ja";
 import { en } from "./en";
+import type { ErrorCode } from "../ipc/generated/ErrorCode";
+import type { IpcError } from "../ipc/generated/IpcError";
 
 export type TranslationKeys = typeof ja;
 
@@ -51,4 +53,33 @@ export function formatMessage(
     }
     return match;
   });
+}
+
+const ERROR_MESSAGE_KEYS = {
+  UnsupportedFormat: "errorUnsupportedFormat",
+  DecodeFailed: "errorDecodeFailed",
+  TooLarge: "errorTooLarge",
+  ReadFailed: "errorReadFailed",
+  WriteFailed: "errorWriteFailed",
+  TraceFailed: "errorTraceFailed",
+  Superseded: "errorSuperseded",
+  BatchRunning: "errorBatchRunning",
+  UnknownHandle: "errorUnknownHandle",
+  InvalidParams: "errorInvalidParams",
+} satisfies Record<ErrorCode, keyof TranslationKeys>;
+
+/**
+ * Returns localized error message for an IpcError per design §5.5.
+ * Appends detail at the end if present.
+ */
+export function getIpcErrorMessage(
+  error: IpcError,
+  t: TranslationKeys,
+): string {
+  const key = ERROR_MESSAGE_KEYS[error.code];
+  const baseMessage = t[key];
+  if (error.detail !== null && error.detail.length > 0) {
+    return `${baseMessage}: ${error.detail}`;
+  }
+  return baseMessage;
 }
