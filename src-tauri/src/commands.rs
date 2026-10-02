@@ -1,6 +1,6 @@
 //! IPC commands and parameter specifications per design §4.5, §5.1, §5.5, §6.1.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
@@ -21,6 +21,7 @@ use crate::batch::{
     PickBatchOutputResult,
 };
 use crate::error::{ErrorCode, IpcError};
+use crate::settings::{self, AboutInfo, Settings};
 
 /// Integer range specification with minimum and maximum values.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -149,6 +150,145 @@ pub fn get_param_spec() -> ParamSpec {
             .collect(),
         default_preset: Preset::ColorLogo,
     }
+}
+
+/// Returns current application settings without exposing absolute filesystem paths per design §5.6 and §6.1.
+#[tauri::command]
+pub fn get_settings(state: tauri::State<'_, AppState>) -> Settings {
+    get_settings_internal(state.inner())
+}
+
+/// Internal implementation of `get_settings` decoupled from `tauri::State`.
+pub fn get_settings_internal(state: &AppState) -> Settings {
+    let (language, preset, params) = {
+        let file = state
+            .settings
+            .file
+            .lock()
+            .expect("settings file mutex should not be poisoned");
+        (file.language.clone(), file.preset, file.params.clone())
+    };
+
+    let batch_input = {
+        let input_guard = state
+            .batch
+            .input_dir
+            .lock()
+            .expect("input_dir mutex should not be poisoned");
+        match *input_guard {
+            Some(ref path) if path.is_dir() => match crate::batch::enumerate_targets(path) {
+                Ok((targets, ignored_count)) => {
+                    let dir_label = path
+                        .file_name()
+                        .map(|n| n.to_string_lossy().to_string())
+                        .unwrap_or_else(|| path.to_string_lossy().to_string());
+                    Some(PickBatchInputResult {
+                        dir_label,
+                        targets,
+                        ignored_count,
+                    })
+                }
+                Err(_) => None,
+            },
+            _ => None,
+        }
+    };
+
+    let batch_output = {
+        let output_guard = state
+            .batch
+            .output_dir
+            .lock()
+            .expect("output_dir mutex should not be poisoned");
+        match *output_guard {
+            Some(ref path) if path.is_dir() => {
+                let dir_label = path
+                    .file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+                    .unwrap_or_else(|| path.to_string_lossy().to_string());
+                Some(PickBatchOutputResult { dir_label })
+            }
+            _ => None,
+        }
+    };
+
+    Settings {
+        language,
+        preset,
+        params,
+        batch_input,
+        batch_output,
+    }
+}
+
+/// Saves application settings per design §4.5, §5.6, and §6.1.
+///
+/// Validates parameters via [`TraceParams::validate`] before saving.
+/// Preserves existing directory paths from in-memory state.
+#[tauri::command]
+pub async fn save_settings(
+    language: Option<String>,
+    preset: Option<Preset>,
+    params: TraceParams,
+    state: tauri::State<'_, AppState>,
+) -> Result<(), IpcError> {
+    save_settings_internal(language, preset, params, state.inner())
+}
+
+/// Internal implementation of `save_settings` decoupled from `tauri::State`.
+pub fn save_settings_internal(
+    language: Option<String>,
+    preset: Option<Preset>,
+    params: TraceParams,
+    state: &AppState,
+) -> Result<(), IpcError> {
+    // 1. Validate trace parameters first per design §4.5
+    params.validate()?;
+
+    // 2. Validate language: only "ja", "en", or None allowed
+    if let Some(ref lang) = language
+        && lang != "ja"
+        && lang != "en"
+    {
+        return Err(IpcError::from_code(ErrorCode::InvalidParams));
+    }
+
+    // 3. Update in-memory settings while preserving folder paths
+    let settings_to_save = {
+        let mut file_guard = state
+            .settings
+            .file
+            .lock()
+            .expect("settings file mutex should not be poisoned");
+        file_guard.language = language;
+        file_guard.preset = preset;
+        file_guard.params = params;
+        file_guard.clone()
+    };
+
+    // 4. Save to disk if config_dir is configured
+    let config_dir_opt = state
+        .settings
+        .config_dir
+        .lock()
+        .expect("config_dir mutex should not be poisoned")
+        .clone();
+    if let Some(config_dir) = config_dir_opt {
+        settings::save_settings_to_dir(&config_dir, &settings_to_save)?;
+    }
+
+    Ok(())
+}
+
+/// Returns application package version information per design §6.1.
+#[tauri::command]
+pub fn get_about(app: tauri::AppHandle) -> AboutInfo {
+    get_about_internal(app.package_info().version.to_string())
+}
+
+/// Internal implementation of `get_about` returning version info.
+pub fn get_about_internal(version: String) -> AboutInfo {
+    AboutInfo { version }
 }
 
 /// Opens an OS file picker for selecting an image and registers its path.
@@ -393,8 +533,18 @@ pub async fn pick_batch_input(
         .into_path()
         .map_err(|e| IpcError::new(ErrorCode::ReadFailed, format!("{e:?}")))?;
 
-    let result = crate::batch::select_batch_input_internal(path_buf, &state.batch)?;
+    let result = pick_batch_input_internal(path_buf, state.inner())?;
     Ok(Some(result))
+}
+
+/// Internal helper for selecting batch input directory and recording it in settings per design §5.6.
+pub fn pick_batch_input_internal(
+    path: PathBuf,
+    state: &AppState,
+) -> Result<PickBatchInputResult, IpcError> {
+    let result = crate::batch::select_batch_input_internal(path.clone(), &state.batch)?;
+    state.settings.record_batch_input(path);
+    Ok(result)
 }
 
 /// Opens an OS folder picker for selecting the batch output folder per design §5.2 and §6.1.
@@ -413,8 +563,15 @@ pub async fn pick_batch_output(
         .into_path()
         .map_err(|e| IpcError::new(ErrorCode::ReadFailed, format!("{e:?}")))?;
 
-    let result = crate::batch::select_batch_output_internal(path_buf, &state.batch);
+    let result = pick_batch_output_internal(path_buf, state.inner());
     Ok(Some(result))
+}
+
+/// Internal helper for selecting batch output directory and recording it in settings per design §5.6.
+pub fn pick_batch_output_internal(path: PathBuf, state: &AppState) -> PickBatchOutputResult {
+    let result = crate::batch::select_batch_output_internal(path.clone(), &state.batch);
+    state.settings.record_batch_output(path);
+    result
 }
 
 /// Initiates batch conversion in a background thread per design §5.2 and §6.1.

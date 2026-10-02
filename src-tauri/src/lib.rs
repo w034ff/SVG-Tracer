@@ -1,5 +1,6 @@
 //! Application library entry point and runtime configuration.
 
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::AtomicU64;
 
@@ -10,6 +11,7 @@ pub mod batch;
 pub mod commands;
 pub mod error;
 pub mod handles;
+pub mod settings;
 
 /// Shared application state managed across Tauri commands.
 #[derive(Debug, Default)]
@@ -20,6 +22,56 @@ pub struct AppState {
     pub latest_seq: Arc<AtomicU64>,
     /// Batch conversion state and folder paths per design §5.2.
     pub batch: Arc<batch::BatchState>,
+    /// In-memory settings manager and persistent config directory per design §5.6.
+    pub settings: Arc<settings::SettingsManager>,
+}
+
+impl AppState {
+    /// Loads settings from `config_dir`, restores valid folders into `batch`, and saves state.
+    pub fn init_settings(&self, config_dir: PathBuf) {
+        let loaded = settings::load_settings(&config_dir);
+
+        // Restore input folder if it exists as directory on disk
+        if let Some(ref dir) = loaded.batch_input_dir {
+            *self
+                .batch
+                .input_dir
+                .lock()
+                .expect("input_dir mutex should not be poisoned") = Some(dir.clone());
+        } else {
+            *self
+                .batch
+                .input_dir
+                .lock()
+                .expect("input_dir mutex should not be poisoned") = None;
+        }
+
+        // Restore output folder if it exists as directory on disk
+        if let Some(ref dir) = loaded.batch_output_dir {
+            *self
+                .batch
+                .output_dir
+                .lock()
+                .expect("output_dir mutex should not be poisoned") = Some(dir.clone());
+        } else {
+            *self
+                .batch
+                .output_dir
+                .lock()
+                .expect("output_dir mutex should not be poisoned") = None;
+        }
+
+        *self
+            .settings
+            .config_dir
+            .lock()
+            .expect("config_dir mutex should not be poisoned") = Some(config_dir);
+        *self
+            .settings
+            .file
+            .lock()
+            .expect("settings file mutex should not be poisoned") = loaded;
+    }
 }
 
 /// Runs the Tauri application.
@@ -31,9 +83,21 @@ pub struct AppState {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .setup(|app| {
+            let config_dir = app
+                .path()
+                .app_config_dir()
+                .unwrap_or_else(|_| PathBuf::from("."));
+            let state = app.state::<AppState>();
+            state.init_settings(config_dir);
+            Ok(())
+        })
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
             commands::get_param_spec,
+            commands::get_settings,
+            commands::save_settings,
+            commands::get_about,
             commands::pick_image,
             commands::load_preview,
             commands::convert,
