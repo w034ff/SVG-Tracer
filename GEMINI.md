@@ -14,6 +14,9 @@ Rules for the implementer of this repository. Read this file and the documents b
 - Do not edit `docs/requirements.md` or `docs/design.md`. If the design is ambiguous, contradictory or cannot be implemented as written, stop and describe the problem under "設計への質問" in the PR description instead of guessing.
 - Write PR descriptions in Japanese, following `docs/work-plan.md` §2.
 - Write the PR description to `pr-description.md` in the repository root (it is git-ignored) instead of printing it in the chat, and give its title on one line. Overwrite the file for each PR.
+- End your final reply for a task or a fix with the commands the owner runs to publish it, filled in with the real branch name and title so they can be pasted as is:
+  - New PR: `git push -u origin <branch>`, then `gh pr create -R w034ff/SVG-Tracer --base main --head <branch> --title "<title>" --body-file pr-description.md`
+  - Fix to an open PR: `git push`, then `gh pr edit <branch> -R w034ff/SVG-Tracer --body-file pr-description.md` (update `pr-description.md` first so it describes the PR as it now stands)
 - Before opening a PR, run every command in `docs/work-plan.md` §5 and make sure all of them pass.
 - In PR descriptions, report only what you actually ran or checked. Never cite a file, setting or design statement as evidence unless it exists and says what you claim.
 
