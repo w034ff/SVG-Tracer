@@ -101,6 +101,8 @@ export const en: TranslationKeys = {
   aboutVersion: "Version {version}",
   aboutAppLicense: "Application License (MIT)",
   aboutThirdPartyLicenses: "Third-Party Licenses",
+  aboutShowThirdPartyLicenses: "Show third-party licenses",
+  aboutHideThirdPartyLicenses: "Hide third-party licenses",
   aboutLoadingLicenses: "Loading licenses...",
   aboutViewLicenseText: "View license text",
   aboutClose: "Close",

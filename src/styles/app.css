@@ -712,6 +712,16 @@ select {
   gap: 8px;
 }
 
+.about-toggle-btn {
+  align-self: flex-start;
+}
+
+.about-licenses-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
 .about-section-title {
   font-size: 14px;
   font-weight: 600;

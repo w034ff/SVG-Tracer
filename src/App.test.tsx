@@ -582,6 +582,23 @@ describe("App", () => {
         screen.getByText(/Copyright \(c\) 2026 w034ff/),
       ).toBeInTheDocument();
 
+      // Third-party licenses should not be displayed before expanding
+      expect(screen.queryByText(/vtracer/)).toBeNull();
+
+      const toggleBtn = screen.getByRole("button", {
+        name: "第三者ライセンスを表示",
+      });
+      expect(toggleBtn).toHaveAttribute("aria-expanded", "false");
+      expect(toggleBtn).toHaveAttribute(
+        "aria-controls",
+        "about-third-party-licenses",
+      );
+
+      fireEvent.click(toggleBtn);
+
+      expect(toggleBtn).toHaveAttribute("aria-expanded", "true");
+      expect(toggleBtn).toHaveTextContent("第三者ライセンスを隠す");
+
       await screen.findByText(/vtracer/);
       expect(screen.getAllByText(/vtracer/).length).toBeGreaterThan(0);
       expect(screen.getAllByText(/tauri/).length).toBeGreaterThan(0);
@@ -640,6 +657,11 @@ describe("App", () => {
 
       const dialog = await screen.findByRole("dialog");
       expect(dialog).toBeInTheDocument();
+
+      const toggleBtn = screen.getByRole("button", {
+        name: "第三者ライセンスを表示",
+      });
+      fireEvent.click(toggleBtn);
       await screen.findByText(/vtracer/);
 
       expect(aboutCallCount).toBe(1);
@@ -754,7 +776,6 @@ describe("App", () => {
 
       const dialog = await screen.findByRole("dialog");
       expect(dialog).toBeInTheDocument();
-      await screen.findByText(/vtracer/);
 
       // Background app-shell must have inert attribute to prevent focusing or interaction
       expect(appShell).toHaveAttribute("inert");

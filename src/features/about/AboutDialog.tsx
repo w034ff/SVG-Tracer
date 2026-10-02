@@ -20,6 +20,8 @@ export function AboutDialog({
   const [licenses, setLicenses] = useState<readonly ThirdPartyLicense[] | null>(
     null,
   );
+  const [isLicensesExpanded, setIsLicensesExpanded] = useState(false);
+  const [isLoadingLicenses, setIsLoadingLicenses] = useState(false);
 
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -28,6 +30,14 @@ export function AboutDialog({
   useEffect(() => {
     onCloseRef.current = onClose;
   });
+
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+  if (prevIsOpen !== isOpen) {
+    setPrevIsOpen(isOpen);
+    if (!isOpen) {
+      setIsLicensesExpanded(false);
+    }
+  }
 
   useEffect(() => {
     if (!isOpen) {
@@ -49,21 +59,30 @@ export function AboutDialog({
         // Fallback gracefully if about info cannot be loaded
       });
 
-    // Dynamically load third-party license catalog only when dialog is opened
-    import("../../licenses")
-      .then((mod) => {
-        if (isMounted) {
-          setLicenses(mod.thirdPartyLicenses);
-        }
-      })
-      .catch(() => {
-        // Fallback gracefully if license bundle cannot be loaded
-      });
-
     return () => {
       isMounted = false;
     };
   }, [isOpen]);
+
+  function handleToggleLicenses(): void {
+    const nextExpanded = !isLicensesExpanded;
+    setIsLicensesExpanded(nextExpanded);
+
+    // Dynamically import third-party licenses only when user first expands the list
+    if (nextExpanded && licenses === null && !isLoadingLicenses) {
+      setIsLoadingLicenses(true);
+      import("../../licenses")
+        .then((mod) => {
+          setLicenses(mod.thirdPartyLicenses);
+        })
+        .catch(() => {
+          // Fallback gracefully if license bundle cannot be loaded
+        })
+        .finally(() => {
+          setIsLoadingLicenses(false);
+        });
+    }
+  }
 
   useEffect(() => {
     if (!isOpen) {
@@ -188,32 +207,51 @@ export function AboutDialog({
           </section>
 
           <section className="about-section">
-            <h3 className="about-section-title">{t.aboutThirdPartyLicenses}</h3>
-            {licenses === null ? (
-              <div className="about-loading">{t.aboutLoadingLicenses}</div>
-            ) : (
-              <div className="about-licenses-list">
-                {licenses.map((license, licenseIndex) => (
-                  <div
-                    key={`${license.id}-${licenseIndex}`}
-                    className="license-item"
-                  >
-                    <div className="license-item-header">{license.name}</div>
-                    <ul className="license-packages">
-                      {license.packages.map((pkg, pkgIndex) => (
-                        <li
-                          key={`${pkg.ecosystem}-${pkg.name}-${pkg.version}-${pkgIndex}`}
-                        >
-                          {pkg.name} {pkg.version}
-                        </li>
-                      ))}
-                    </ul>
-                    <details className="license-details">
-                      <summary>{t.aboutViewLicenseText}</summary>
-                      <pre className="license-box">{license.text}</pre>
-                    </details>
+            <button
+              type="button"
+              className="btn about-toggle-btn"
+              aria-expanded={isLicensesExpanded}
+              aria-controls="about-third-party-licenses"
+              onClick={handleToggleLicenses}
+            >
+              {isLicensesExpanded
+                ? t.aboutHideThirdPartyLicenses
+                : t.aboutShowThirdPartyLicenses}
+            </button>
+            {isLicensesExpanded && (
+              <div
+                id="about-third-party-licenses"
+                className="about-licenses-container"
+              >
+                {licenses === null ? (
+                  <div className="about-loading">{t.aboutLoadingLicenses}</div>
+                ) : (
+                  <div className="about-licenses-list">
+                    {licenses.map((license, licenseIndex) => (
+                      <div
+                        key={`${license.id}-${licenseIndex}`}
+                        className="license-item"
+                      >
+                        <div className="license-item-header">
+                          {license.name}
+                        </div>
+                        <ul className="license-packages">
+                          {license.packages.map((pkg, pkgIndex) => (
+                            <li
+                              key={`${pkg.ecosystem}-${pkg.name}-${pkg.version}-${pkgIndex}`}
+                            >
+                              {pkg.name} {pkg.version}
+                            </li>
+                          ))}
+                        </ul>
+                        <details className="license-details">
+                          <summary>{t.aboutViewLicenseText}</summary>
+                          <pre className="license-box">{license.text}</pre>
+                        </details>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                )}
               </div>
             )}
           </section>
