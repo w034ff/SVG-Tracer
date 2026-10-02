@@ -82,6 +82,7 @@ export const ja = {
   batchProgressConverting: "{name} ほか {count} 件を変換中",
   batchProgressConvertingSingle: "{name} を変換中",
   batchProgressComplete: "完了",
+  batchProgressCancelled: "キャンセルしました",
   batchSummaryCompleted:
     "変換が完了しました：成功 {succeeded} 件 · 失敗 {failed} 件",
   batchSummaryCancelled:

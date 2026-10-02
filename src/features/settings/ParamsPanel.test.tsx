@@ -3,7 +3,6 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import type { IpcError, ParamSpec, TraceParams } from "../../ipc";
 import { LanguageProvider, ParamsProvider } from "../../state";
-import { BatchConversionContext } from "../../state/contexts";
 import { ParamsPanel } from "./ParamsPanel";
 
 const COLOR_LOGO_PARAMS: TraceParams = {
@@ -267,26 +266,11 @@ describe("ParamsPanel", () => {
     expect(screen.queryByLabelText(/座標の精度/)).not.toBeInTheDocument();
   });
 
-  it("disables all controls and displays notice when batch conversion is active", () => {
+  it("disables all controls and displays notice when disabled prop is true", () => {
     render(
       <LanguageProvider initialLanguage="ja">
         <ParamsProvider initialSpec={TEST_SPEC}>
-          <BatchConversionContext.Provider
-            value={{
-              state: {
-                status: "running",
-                inputDir: null,
-                outputDir: null,
-                progress: null,
-                items: [],
-                finished: null,
-                error: null,
-              },
-              dispatch: () => {},
-            }}
-          >
-            <ParamsPanel />
-          </BatchConversionContext.Provider>
+          <ParamsPanel disabled={true} />
         </ParamsProvider>
       </LanguageProvider>,
     );

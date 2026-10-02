@@ -238,6 +238,11 @@ describe("BatchConversionView", () => {
     };
     await act(async () => {
       await emit("batch-item", item2);
+      await emit("batch-progress", {
+        done: 2,
+        total: 2,
+        current: null,
+      });
     });
     expect(screen.getByText("✕ 失敗")).toBeInTheDocument();
 
@@ -653,5 +658,316 @@ describe("BatchConversionView", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("img.svg")).toBeInTheDocument();
     expect(screen.getByText("✓ 完了")).toBeInTheDocument();
+  });
+
+  it("shows 1 / 4 and cancelled text when batch is cancelled after converting 1 of 4 items", async () => {
+    const { emit } = await import("@tauri-apps/api/event");
+
+    mockIPC(
+      (cmd) => {
+        if (cmd === "pick_batch_input") {
+          return {
+            dirLabel: "in",
+            targets: ["item1.png", "item2.png", "item3.png", "item4.png"],
+            ignoredCount: 0,
+          };
+        }
+        if (cmd === "pick_batch_output") {
+          return { dirLabel: "out" };
+        }
+        if (cmd === "start_batch") {
+          return null;
+        }
+        return null;
+      },
+      { shouldMockEvents: true },
+    );
+
+    setupAppOnBatchTab();
+
+    const [pickInputBtn, pickOutputBtn] = screen.getAllByRole("button", {
+      name: "フォルダを選択",
+    });
+    if (!pickInputBtn || !pickOutputBtn) {
+      throw new Error("Folder select buttons not found");
+    }
+
+    await act(async () => {
+      fireEvent.click(pickInputBtn);
+      fireEvent.click(pickOutputBtn);
+    });
+
+    const startBtn = await screen.findByRole("button", {
+      name: "変換を開始",
+    });
+    await act(async () => {
+      fireEvent.click(startBtn);
+    });
+
+    // 1 item finishes
+    await act(async () => {
+      await emit("batch-progress", {
+        done: 0,
+        total: 4,
+        current: "item1.png",
+      });
+      await emit("batch-item", {
+        name: "item1.png",
+        status: "ok",
+        outputName: "item1.svg",
+        error: null,
+      });
+      await emit("batch-progress", {
+        done: 1,
+        total: 4,
+        current: null,
+      });
+    });
+
+    // Cancelled finish event
+    await act(async () => {
+      await emit("batch-finished", {
+        succeeded: 1,
+        failed: 0,
+        skipped: 3,
+        cancelled: true,
+      });
+    });
+
+    // Progress shows "1 / 4" and "キャンセルしました" instead of "完了"
+    expect(screen.getByText("1 / 4")).toBeInTheDocument();
+    expect(screen.getByText("キャンセルしました")).toBeInTheDocument();
+    const progressSection = document.querySelector(".batch-progress-section");
+    expect(progressSection).not.toBeNull();
+    expect(progressSection?.textContent).not.toContain("完了 1 / 4");
+
+    const progressbar = screen.getByRole("progressbar");
+    expect(progressbar).toHaveAttribute("aria-valuenow", "1");
+    expect(progressbar).toHaveAttribute("aria-valuemax", "4");
+
+    expect(
+      screen.getByText(
+        "変換を中止しました：成功 1 件 · 失敗 0 件 · 未処理 3 件",
+      ),
+    ).toBeInTheDocument();
+
+    const unprocessedPills = screen.getAllByText("未処理");
+    expect(unprocessedPills).toHaveLength(3);
+  });
+
+  it("resets progress to 0 / N and clears completion state when re-selecting input or output folder after completion", async () => {
+    const { emit } = await import("@tauri-apps/api/event");
+
+    let currentInput: PickBatchInputResult = {
+      dirLabel: "in1",
+      targets: ["file1.png", "file2.png"],
+      ignoredCount: 0,
+    };
+    let currentOutput: PickBatchOutputResult = {
+      dirLabel: "out1",
+    };
+
+    mockIPC(
+      (cmd) => {
+        if (cmd === "pick_batch_input") {
+          return currentInput;
+        }
+        if (cmd === "pick_batch_output") {
+          return currentOutput;
+        }
+        if (cmd === "start_batch") {
+          return null;
+        }
+        return null;
+      },
+      { shouldMockEvents: true },
+    );
+
+    setupAppOnBatchTab();
+
+    const [pickInputBtn, pickOutputBtn] = screen.getAllByRole("button", {
+      name: "フォルダを選択",
+    });
+    if (!pickInputBtn || !pickOutputBtn) {
+      throw new Error("Folder select buttons not found");
+    }
+
+    await act(async () => {
+      fireEvent.click(pickInputBtn);
+      fireEvent.click(pickOutputBtn);
+    });
+
+    const startBtn = await screen.findByRole("button", {
+      name: "変換を開始",
+    });
+    await act(async () => {
+      fireEvent.click(startBtn);
+    });
+
+    // Complete batch
+    await act(async () => {
+      await emit("batch-item", {
+        name: "file1.png",
+        status: "ok",
+        outputName: "file1.svg",
+        error: null,
+      });
+      await emit("batch-item", {
+        name: "file2.png",
+        status: "ok",
+        outputName: "file2.svg",
+        error: null,
+      });
+      await emit("batch-progress", {
+        done: 2,
+        total: 2,
+        current: null,
+      });
+      await emit("batch-finished", {
+        succeeded: 2,
+        failed: 0,
+        skipped: 0,
+        cancelled: false,
+      });
+    });
+
+    // Completed state is shown
+    expect(screen.getByText("完了")).toBeInTheDocument();
+    expect(screen.getByText("2 / 2")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toBeInTheDocument();
+
+    // Re-select input folder with 3 new files
+    currentInput = {
+      dirLabel: "in2",
+      targets: ["img1.png", "img2.png", "img3.png"],
+      ignoredCount: 0,
+    };
+    await act(async () => {
+      fireEvent.click(pickInputBtn);
+    });
+
+    // Progress resets to 0 / 3 and "完了" disappears
+    expect(screen.queryByText("完了")).not.toBeInTheDocument();
+    expect(screen.getByText("0 / 3")).toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    const progressbar1 = screen.getByRole("progressbar");
+    expect(progressbar1).toHaveAttribute("aria-valuenow", "0");
+    expect(progressbar1).toHaveAttribute("aria-valuemax", "3");
+
+    // Run batch again and finish it to test output folder re-selection
+    await act(async () => {
+      fireEvent.click(startBtn);
+    });
+    await act(async () => {
+      await emit("batch-progress", {
+        done: 3,
+        total: 3,
+        current: null,
+      });
+      await emit("batch-finished", {
+        succeeded: 3,
+        failed: 0,
+        skipped: 0,
+        cancelled: false,
+      });
+    });
+
+    expect(screen.getByText("完了")).toBeInTheDocument();
+    expect(screen.getByText("3 / 3")).toBeInTheDocument();
+
+    // Re-select output folder
+    currentOutput = {
+      dirLabel: "out2",
+    };
+    await act(async () => {
+      fireEvent.click(pickOutputBtn);
+    });
+
+    // Progress resets to 0 / 3 and "完了" disappears
+    expect(screen.queryByText("完了")).not.toBeInTheDocument();
+    expect(screen.getByText("0 / 3")).toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    const progressbar2 = screen.getByRole("progressbar");
+    expect(progressbar2).toHaveAttribute("aria-valuenow", "0");
+    expect(progressbar2).toHaveAttribute("aria-valuemax", "3");
+  });
+
+  it("marks unreported items as unprocessed even when batch finishes normally without cancellation", async () => {
+    const { emit } = await import("@tauri-apps/api/event");
+
+    mockIPC(
+      (cmd) => {
+        if (cmd === "pick_batch_input") {
+          return {
+            dirLabel: "in",
+            targets: ["file1.png", "file2.png", "vanished.png"],
+            ignoredCount: 0,
+          };
+        }
+        if (cmd === "pick_batch_output") {
+          return { dirLabel: "out" };
+        }
+        if (cmd === "start_batch") {
+          return null;
+        }
+        return null;
+      },
+      { shouldMockEvents: true },
+    );
+
+    setupAppOnBatchTab();
+
+    const [pickInputBtn, pickOutputBtn] = screen.getAllByRole("button", {
+      name: "フォルダを選択",
+    });
+    if (!pickInputBtn || !pickOutputBtn) {
+      throw new Error("Folder select buttons not found");
+    }
+
+    await act(async () => {
+      fireEvent.click(pickInputBtn);
+      fireEvent.click(pickOutputBtn);
+    });
+
+    const startBtn = await screen.findByRole("button", {
+      name: "変換を開始",
+    });
+    await act(async () => {
+      fireEvent.click(startBtn);
+    });
+
+    // 2 items processed, vanished.png never reported
+    await act(async () => {
+      await emit("batch-item", {
+        name: "file1.png",
+        status: "ok",
+        outputName: "file1.svg",
+        error: null,
+      });
+      await emit("batch-item", {
+        name: "file2.png",
+        status: "ok",
+        outputName: "file2.svg",
+        error: null,
+      });
+      await emit("batch-progress", {
+        done: 2,
+        total: 3,
+        current: null,
+      });
+      await emit("batch-finished", {
+        succeeded: 2,
+        failed: 0,
+        skipped: 1,
+        cancelled: false,
+      });
+    });
+
+    // vanished.png should be marked as unprocessed
+    expect(screen.getByText("未処理")).toBeInTheDocument();
+    expect(
+      screen.getByText("変換が完了しました：成功 2 件 · 失敗 0 件"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("2 / 3")).toBeInTheDocument();
   });
 });

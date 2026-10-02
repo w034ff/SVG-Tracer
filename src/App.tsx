@@ -27,8 +27,11 @@ import "./styles/app.css";
 function AppContent(): ReactElement {
   const { t, state: langState, dispatch: langDispatch } = useLanguage();
   const { dispatch: singleDispatch } = useSingleConversion();
-  const { dispatch: batchDispatch } = useBatchConversion();
+  const { state: batchState, dispatch: batchDispatch } = useBatchConversion();
   const [activeTab, setActiveTab] = useState<"single" | "batch">("single");
+
+  const isBatchActive =
+    batchState.status === "running" || batchState.status === "cancelling";
 
   useEffect(() => {
     let unlistenPromise: Promise<UnlistenFn> | null = null;
@@ -186,7 +189,7 @@ function AppContent(): ReactElement {
 
       {/* Main layout: left parameter panel and active tab area */}
       <div className="app-body">
-        <ParamsPanel />
+        <ParamsPanel disabled={isBatchActive} />
         <main className="app-main">
           <div
             id="panel-single"

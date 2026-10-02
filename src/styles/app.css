@@ -404,15 +404,18 @@ select {
   color: var(--color-notice-fg);
 }
 
-.params-body {
+.params-fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 18px;
 }
 
-.params-body-disabled {
+.params-fieldset:disabled {
   opacity: 0.5;
-  pointer-events: none;
 }
 
 .batch-view {

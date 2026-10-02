@@ -37,7 +37,7 @@ export function BatchConversionView(): ReactElement {
       }
     } catch (err: unknown) {
       const ipcError = normalizeIpcError(err);
-      batchDispatch({ type: "START_BATCH_FAILED", error: ipcError });
+      batchDispatch({ type: "SET_ERROR", error: ipcError });
     }
   }
 
@@ -52,7 +52,7 @@ export function BatchConversionView(): ReactElement {
       }
     } catch (err: unknown) {
       const ipcError = normalizeIpcError(err);
-      batchDispatch({ type: "START_BATCH_FAILED", error: ipcError });
+      batchDispatch({ type: "SET_ERROR", error: ipcError });
     }
   }
 
@@ -86,12 +86,11 @@ export function BatchConversionView(): ReactElement {
       ? batchState.inputDir.targets.length
       : 0;
 
-  const done =
-    batchState.status === "finished"
-      ? total
-      : batchState.progress
-        ? batchState.progress.done
-        : 0;
+  const done = batchState.progress
+    ? batchState.progress.done
+    : batchState.finished
+      ? batchState.finished.succeeded + batchState.finished.failed
+      : 0;
 
   const percent =
     total > 0 ? Math.min(100, Math.max(0, (done / total) * 100)) : 0;
@@ -125,7 +124,11 @@ export function BatchConversionView(): ReactElement {
       progressStatusText = t.batchStatusRunning;
     }
   } else if (batchState.status === "finished") {
-    progressStatusText = t.batchProgressComplete;
+    if (batchState.finished?.cancelled) {
+      progressStatusText = t.batchProgressCancelled;
+    } else {
+      progressStatusText = t.batchProgressComplete;
+    }
   }
 
   function renderStatusPill(status: BatchItemRowStatus): ReactElement {

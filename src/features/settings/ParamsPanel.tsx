@@ -1,18 +1,18 @@
-import { useContext, type ChangeEvent, type ReactElement } from "react";
+import type { ChangeEvent, ReactElement } from "react";
 import type { TraceParams } from "../../ipc";
 import { useLanguage, useParams } from "../../state";
-import { BatchConversionContext } from "../../state/contexts";
 import { INTEGER_PARAM_STEP, LENGTH_THRESHOLD_STEP } from "./constants";
 
-export function ParamsPanel(): ReactElement {
+export type ParamsPanelProps = {
+  readonly disabled?: boolean;
+};
+
+export function ParamsPanel({
+  disabled = false,
+}: ParamsPanelProps): ReactElement {
   const { t } = useLanguage();
   const { state, dispatch } = useParams();
-  const batchContext = useContext(BatchConversionContext);
   const { spec, params, preset, isAdvancedOpen, error } = state;
-
-  const isBatchActive =
-    batchContext?.state.status === "running" ||
-    batchContext?.state.status === "cancelling";
 
   if (error) {
     return (
@@ -73,27 +73,18 @@ export function ParamsPanel(): ReactElement {
 
   return (
     <aside className="app-aside">
-      {isBatchActive && (
+      {disabled && (
         <div className="params-disabled-notice">
           {t.batchDisabledDuringConversion}
         </div>
       )}
-      <div
-        className={
-          isBatchActive ? "params-body params-body-disabled" : "params-body"
-        }
-      >
+      <fieldset disabled={disabled} className="params-fieldset">
         {/* Preset selector */}
         <div className="field">
           <label htmlFor="preset" className="field-head">
             {t.preset}
           </label>
-          <select
-            id="preset"
-            value={preset}
-            disabled={isBatchActive}
-            onChange={handlePresetChange}
-          >
+          <select id="preset" value={preset} onChange={handlePresetChange}>
             {preset === "custom" && (
               <option value="custom">{t.presetCustom}</option>
             )}
@@ -112,7 +103,6 @@ export function ParamsPanel(): ReactElement {
             <button
               type="button"
               aria-pressed={params.colorMode === "color"}
-              disabled={isBatchActive}
               onClick={() => updateParam("colorMode", "color")}
             >
               {t.colorModeColor}
@@ -120,7 +110,6 @@ export function ParamsPanel(): ReactElement {
             <button
               type="button"
               aria-pressed={params.colorMode === "binary"}
-              disabled={isBatchActive}
               onClick={() => updateParam("colorMode", "binary")}
             >
               {t.colorModeBinary}
@@ -142,7 +131,6 @@ export function ParamsPanel(): ReactElement {
               max={spec.ranges.colorPrecision.max}
               step={INTEGER_PARAM_STEP}
               value={params.colorPrecision}
-              disabled={isBatchActive}
               onChange={(e) => handleIntSlider("colorPrecision", e)}
             />
           </div>
@@ -161,7 +149,6 @@ export function ParamsPanel(): ReactElement {
             max={spec.ranges.filterSpeckle.max}
             step={INTEGER_PARAM_STEP}
             value={params.filterSpeckle}
-            disabled={isBatchActive}
             onChange={(e) => handleIntSlider("filterSpeckle", e)}
           />
         </div>
@@ -179,7 +166,6 @@ export function ParamsPanel(): ReactElement {
             max={spec.ranges.cornerThreshold.max}
             step={INTEGER_PARAM_STEP}
             value={params.cornerThreshold}
-            disabled={isBatchActive}
             onChange={(e) => handleIntSlider("cornerThreshold", e)}
           />
         </div>
@@ -191,7 +177,6 @@ export function ParamsPanel(): ReactElement {
             <button
               type="button"
               aria-pressed={params.curveMode === "spline"}
-              disabled={isBatchActive}
               onClick={() => updateParam("curveMode", "spline")}
             >
               {t.curveModeSpline}
@@ -199,7 +184,6 @@ export function ParamsPanel(): ReactElement {
             <button
               type="button"
               aria-pressed={params.curveMode === "polygon"}
-              disabled={isBatchActive}
               onClick={() => updateParam("curveMode", "polygon")}
             >
               {t.curveModePolygon}
@@ -212,7 +196,6 @@ export function ParamsPanel(): ReactElement {
           type="button"
           className="btn btn-advanced"
           aria-expanded={isAdvancedOpen}
-          disabled={isBatchActive}
           onClick={() => dispatch({ type: "TOGGLE_ADVANCED" })}
         >
           <span>{t.advanced}</span>
@@ -252,7 +235,6 @@ export function ParamsPanel(): ReactElement {
                   max={spec.ranges.layerDifference.max}
                   step={INTEGER_PARAM_STEP}
                   value={params.layerDifference}
-                  disabled={isBatchActive}
                   onChange={(e) => handleIntSlider("layerDifference", e)}
                 />
               </div>
@@ -266,7 +248,6 @@ export function ParamsPanel(): ReactElement {
                   <button
                     type="button"
                     aria-pressed={params.hierarchical === "stacked"}
-                    disabled={isBatchActive}
                     onClick={() => updateParam("hierarchical", "stacked")}
                   >
                     {t.hierarchicalStacked}
@@ -274,7 +255,6 @@ export function ParamsPanel(): ReactElement {
                   <button
                     type="button"
                     aria-pressed={params.hierarchical === "cutout"}
-                    disabled={isBatchActive}
                     onClick={() => updateParam("hierarchical", "cutout")}
                   >
                     {t.hierarchicalCutout}
@@ -296,7 +276,6 @@ export function ParamsPanel(): ReactElement {
                 max={spec.ranges.lengthThreshold.max}
                 step={LENGTH_THRESHOLD_STEP}
                 value={params.lengthThreshold}
-                disabled={isBatchActive}
                 onChange={(e) => handleFloatSlider("lengthThreshold", e)}
               />
             </div>
@@ -314,7 +293,6 @@ export function ParamsPanel(): ReactElement {
                 max={spec.ranges.spliceThreshold.max}
                 step={INTEGER_PARAM_STEP}
                 value={params.spliceThreshold}
-                disabled={isBatchActive}
                 onChange={(e) => handleIntSlider("spliceThreshold", e)}
               />
             </div>
@@ -332,13 +310,12 @@ export function ParamsPanel(): ReactElement {
                 max={spec.ranges.pathPrecision.max}
                 step={INTEGER_PARAM_STEP}
                 value={params.pathPrecision}
-                disabled={isBatchActive}
                 onChange={(e) => handleIntSlider("pathPrecision", e)}
               />
             </div>
           </>
         )}
-      </div>
+      </fieldset>
     </aside>
   );
 }

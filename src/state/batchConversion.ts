@@ -34,11 +34,11 @@ export type BatchConversionAction =
   | { type: "SET_OUTPUT_DIR"; outputDir: PickBatchOutputResult | null }
   | { type: "START_BATCH" }
   | { type: "START_BATCH_FAILED"; error: IpcError }
+  | { type: "SET_ERROR"; error: IpcError }
   | { type: "UPDATE_PROGRESS"; progress: BatchProgressPayload }
   | { type: "ITEM_PROCESSED"; item: BatchItemPayload }
   | { type: "CANCEL_BATCH" }
   | { type: "FINISH_BATCH"; finished: BatchFinishedPayload }
-  | { type: "CLEAR_ERROR" }
   | { type: "RESET" };
 
 export function createInitialBatchConversionState(): BatchConversionState {
@@ -69,6 +69,7 @@ export function batchConversionReducer(
         : [];
       return {
         ...state,
+        status: "idle",
         inputDir: action.inputDir,
         items,
         progress: null,
@@ -80,7 +81,11 @@ export function batchConversionReducer(
     case "SET_OUTPUT_DIR":
       return {
         ...state,
+        status: "idle",
         outputDir: action.outputDir,
+        progress: null,
+        finished: null,
+        error: null,
       };
 
     case "START_BATCH": {
@@ -101,6 +106,7 @@ export function batchConversionReducer(
     }
 
     case "START_BATCH_FAILED":
+    case "SET_ERROR":
       return {
         ...state,
         status: "idle",
@@ -181,15 +187,12 @@ export function batchConversionReducer(
 
     case "FINISH_BATCH": {
       const { finished } = action;
-      let nextItems = state.items;
-      if (finished.cancelled) {
-        nextItems = nextItems.map((item) => {
-          if (item.status !== "ok" && item.status !== "failed") {
-            return { ...item, status: "unprocessed" };
-          }
-          return item;
-        });
-      }
+      const nextItems = state.items.map((item) => {
+        if (item.status !== "ok" && item.status !== "failed") {
+          return { ...item, status: "unprocessed" as const };
+        }
+        return item;
+      });
       return {
         ...state,
         status: "finished",
@@ -197,12 +200,6 @@ export function batchConversionReducer(
         items: nextItems,
       };
     }
-
-    case "CLEAR_ERROR":
-      return {
-        ...state,
-        error: null,
-      };
 
     case "RESET":
       return createInitialBatchConversionState();

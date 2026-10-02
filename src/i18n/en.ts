@@ -84,6 +84,7 @@ export const en: TranslationKeys = {
   batchProgressConverting: "Converting {name} and {count} other(s)",
   batchProgressConvertingSingle: "Converting {name}",
   batchProgressComplete: "Completed",
+  batchProgressCancelled: "Cancelled",
   batchSummaryCompleted:
     "Conversion completed: {succeeded} succeeded · {failed} failed",
   batchSummaryCancelled:
