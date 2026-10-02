@@ -50,14 +50,43 @@ export type SingleConversionAction =
     }
   | { type: "CONVERT_ERROR"; error: IpcError }
   | { type: "SET_ERROR"; error: IpcError | null }
-  | { type: "SET_ZOOM"; zoom: number }
-  | { type: "ZOOM_BY"; factor: number }
+  | { type: "SET_ZOOM"; zoom: number; anchor?: PanOffset }
+  | { type: "ZOOM_BY"; factor: number; anchor?: PanOffset }
   | { type: "SET_PAN"; pan: PanOffset }
   | { type: "SET_ZOOM_AND_PAN"; zoom: number; pan: PanOffset }
   | { type: "RESET" };
 
 export function clampZoom(zoom: number): number {
   return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom));
+}
+
+/**
+ * Calculates new zoom and pan so that the anchor point under cursor stays at the same screen position.
+ *
+ * pan' = p - (p - pan) * (z' / z)
+ *
+ * When p = 0 (anchor at pane center), pan' = pan * (z' / z).
+ * If the clamped zoom does not change, pan remains unchanged.
+ */
+export function calculateZoomPan(
+  currentZoom: number,
+  targetZoom: number,
+  currentPan: PanOffset,
+  anchor: PanOffset = { x: 0, y: 0 },
+): { zoom: number; pan: PanOffset } {
+  const nextZoom = clampZoom(targetZoom);
+  if (nextZoom === currentZoom) {
+    return { zoom: currentZoom, pan: currentPan };
+  }
+
+  const ratio = nextZoom / currentZoom;
+  return {
+    zoom: nextZoom,
+    pan: {
+      x: anchor.x - (anchor.x - currentPan.x) * ratio,
+      y: anchor.y - (anchor.y - currentPan.y) * ratio,
+    },
+  };
 }
 
 export function createInitialSingleConversionState(): SingleConversionState {
@@ -136,16 +165,32 @@ export function singleConversionReducer(
         status: action.error ? "error" : state.status,
         error: action.error,
       };
-    case "SET_ZOOM":
+    case "SET_ZOOM": {
+      const next = calculateZoomPan(
+        state.zoom,
+        action.zoom,
+        state.pan,
+        action.anchor,
+      );
       return {
         ...state,
-        zoom: clampZoom(action.zoom),
+        zoom: next.zoom,
+        pan: next.pan,
       };
-    case "ZOOM_BY":
+    }
+    case "ZOOM_BY": {
+      const next = calculateZoomPan(
+        state.zoom,
+        state.zoom * action.factor,
+        state.pan,
+        action.anchor,
+      );
       return {
         ...state,
-        zoom: clampZoom(state.zoom * action.factor),
+        zoom: next.zoom,
+        pan: next.pan,
       };
+    }
     case "SET_PAN":
       return {
         ...state,
