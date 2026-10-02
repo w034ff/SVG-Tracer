@@ -172,11 +172,14 @@ export function AboutDialog({
         <div className="modal-body">
           <div className="about-app-info">
             <div className="about-app-name">{t.appTitle}</div>
-            {aboutInfo !== null && (
-              <div className="about-version">
-                {formatMessage(t.aboutVersion, { version: aboutInfo.version })}
-              </div>
-            )}
+            <div
+              className="about-version"
+              aria-hidden={aboutInfo === null ? true : undefined}
+            >
+              {aboutInfo !== null
+                ? formatMessage(t.aboutVersion, { version: aboutInfo.version })
+                : "\u00A0"}
+            </div>
           </div>
 
           <section className="about-section">

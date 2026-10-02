@@ -133,4 +133,27 @@ describe("AboutDialog", () => {
     fireEvent.keyDown(window, { key: "Tab" });
     expect(document.activeElement).toBe(topCloseBtn);
   });
+
+  it("maintains consistent dialog class and reserved version height before and after licenses load", async () => {
+    render(
+      <LanguageProvider initialLanguage="ja">
+        <AboutDialog isOpen={true} onClose={vi.fn()} />
+      </LanguageProvider>,
+    );
+
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveClass("modal-dialog");
+
+    // Version row area is rendered immediately to reserve space
+    const versionArea = document.querySelector(".about-version");
+    expect(versionArea).toBeInTheDocument();
+
+    const classNameBefore = dialog.className;
+
+    // Wait for third-party licenses to load
+    await screen.findByText(/vtracer/);
+
+    expect(dialog.className).toBe(classNameBefore);
+    expect(dialog).toHaveClass("modal-dialog");
+  });
 });

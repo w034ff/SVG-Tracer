@@ -652,7 +652,9 @@ select {
   border-radius: var(--radius-control);
   width: 100%;
   max-width: 640px;
-  max-height: 85vh;
+  /* Fixed dialog height to prevent layout shift when third-party licenses load;
+     fits comfortably within 960x640 minimum window with overlay padding (24px * 2) */
+  height: min(85vh, 720px);
   display: flex;
   flex-direction: column;
   box-shadow: 0 8px 24px var(--color-overlay-backdrop);
@@ -665,6 +667,7 @@ select {
   justify-content: space-between;
   padding: 16px 20px;
   border-bottom: 1px solid var(--color-border-divider);
+  flex-shrink: 0;
 }
 
 .modal-title {
@@ -680,6 +683,8 @@ select {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .about-app-info {
@@ -696,6 +701,8 @@ select {
 
 .about-version {
   font-size: 13px;
+  line-height: 1.4;
+  min-height: 1.4em;
   color: var(--color-fg-muted);
 }
 
@@ -785,4 +792,5 @@ select {
   padding: 12px 20px;
   border-top: 1px solid var(--color-border-divider);
   background: var(--color-bg-surface);
+  flex-shrink: 0;
 }
