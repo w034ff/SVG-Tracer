@@ -1,6 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { ConvertResult } from "./generated/ConvertResult";
 import type { ErrorCode } from "./generated/ErrorCode";
+import type { ImageDroppedPayload } from "./generated/ImageDroppedPayload";
 import type { IpcError } from "./generated/IpcError";
 import type { ParamSpec } from "./generated/ParamSpec";
 import type { PickBatchInputResult } from "./generated/PickBatchInputResult";
@@ -31,6 +33,7 @@ export type { Preset } from "./generated/Preset";
 export type { PresetSpec } from "./generated/PresetSpec";
 export type { SaveSvgResult } from "./generated/SaveSvgResult";
 export type { TraceParams } from "./generated/TraceParams";
+export type { UnlistenFn };
 
 const ERROR_CODES = {
   UnsupportedFormat: true,
@@ -176,4 +179,15 @@ export async function startBatch(params: TraceParams): Promise<void> {
  */
 export async function cancelBatch(): Promise<void> {
   return invokeWrapped<void>("cancel_batch");
+}
+
+/**
+ * Subscribes to the `image-dropped` event per design §6.2.
+ */
+export async function onImageDropped(
+  handler: (payload: ImageDroppedPayload) => void,
+): Promise<UnlistenFn> {
+  return listen<ImageDroppedPayload>("image-dropped", (event) => {
+    handler(event.payload);
+  });
 }

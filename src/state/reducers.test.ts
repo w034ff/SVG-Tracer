@@ -188,9 +188,11 @@ describe("reducers", () => {
         type: "CONVERT_SUCCESS",
         result: { svg: "<svg/>", pathCount: 5, bytes: 100, elapsedMs: 12 },
         svg: "<svg/>",
+        svgUrl: "blob:http://localhost/svg",
       });
       expect(success.status).toBe("ready");
       expect(success.result?.pathCount).toBe(5);
+      expect(success.svgUrl).toBe("blob:http://localhost/svg");
 
       const error = singleConversionReducer(converting, {
         type: "CONVERT_ERROR",
@@ -198,6 +200,27 @@ describe("reducers", () => {
       });
       expect(error.status).toBe("error");
       expect(error.error?.code).toBe("DecodeFailed");
+    });
+
+    it("clamps zoom level within bounds and updates pan offset", () => {
+      const initial = createInitialSingleConversionState();
+      const zoomed = singleConversionReducer(initial, {
+        type: "SET_ZOOM",
+        zoom: 20.0,
+      });
+      expect(zoomed.zoom).toBe(16.0);
+
+      const zoomMin = singleConversionReducer(initial, {
+        type: "SET_ZOOM",
+        zoom: 0.05,
+      });
+      expect(zoomMin.zoom).toBe(0.1);
+
+      const panned = singleConversionReducer(initial, {
+        type: "SET_PAN",
+        pan: { x: 50, y: -30 },
+      });
+      expect(panned.pan).toEqual({ x: 50, y: -30 });
     });
   });
 

@@ -51,4 +51,24 @@ describe("i18n", () => {
       expect(jaKeys).toEqual(enKeys);
     });
   });
+
+  describe("getIpcErrorMessage", () => {
+    it("returns base message when detail is null", async () => {
+      const { getIpcErrorMessage } = await import("./index");
+      const msg = getIpcErrorMessage(
+        { code: "UnsupportedFormat", detail: null },
+        translations.ja,
+      );
+      expect(msg).toBe("非対応の画像形式です");
+    });
+
+    it("appends detail when detail is present", async () => {
+      const { getIpcErrorMessage } = await import("./index");
+      const msg = getIpcErrorMessage(
+        { code: "DecodeFailed", detail: "corrupt header" },
+        translations.en,
+      );
+      expect(msg).toBe("Failed to decode image: corrupt header");
+    });
+  });
 });

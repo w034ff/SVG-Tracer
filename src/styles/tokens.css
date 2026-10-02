@@ -13,6 +13,9 @@
   --color-primary-fg: #ffffff;
   --color-checker-1: #ffffff;
   --color-checker-2: #e6e4df;
+  --color-border-dropzone: #b9b5ab;
+  --color-danger: #c5221f;
+  --color-danger-bg: #fce8e6;
 
   --font-sans:
     "Segoe UI", "Noto Sans JP", "Yu Gothic UI", system-ui, sans-serif;
@@ -39,5 +42,8 @@
     --color-primary-fg: #0d1b2e;
     --color-checker-1: #232427;
     --color-checker-2: #2c2e32;
+    --color-border-dropzone: #4e5158;
+    --color-danger: #f28b82;
+    --color-danger-bg: #3c1e1e;
   }
 }

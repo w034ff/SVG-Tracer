@@ -1,13 +1,51 @@
-import { useState, type ChangeEvent, type ReactElement } from "react";
+import {
+  useEffect,
+  useState,
+  type ChangeEvent,
+  type ReactElement,
+} from "react";
 import { ParamsPanel } from "./features/settings/ParamsPanel";
+import { SingleConversionView } from "./features/single/SingleConversionView";
 import type { Language } from "./i18n";
-import type { ParamSpec } from "./ipc";
-import { AppProviders, useLanguage } from "./state";
+import { onImageDropped, type ParamSpec, type UnlistenFn } from "./ipc";
+import { AppProviders, useLanguage, useSingleConversion } from "./state";
 import "./styles/app.css";
 
 function AppContent(): ReactElement {
   const { t, state: langState, dispatch: langDispatch } = useLanguage();
+  const { dispatch: singleDispatch } = useSingleConversion();
   const [activeTab, setActiveTab] = useState<"single" | "batch">("single");
+
+  useEffect(() => {
+    let unlistenPromise: Promise<UnlistenFn> | null = null;
+    let isMounted = true;
+
+    unlistenPromise = onImageDropped((payload) => {
+      if (!isMounted) {
+        return;
+      }
+      setActiveTab("single");
+      if ("error" in payload) {
+        singleDispatch({ type: "SET_ERROR", error: payload.error });
+      } else {
+        singleDispatch({
+          type: "SET_IMAGE",
+          image: { id: payload.id, name: payload.name },
+        });
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      if (unlistenPromise) {
+        void unlistenPromise
+          .then((unlisten) => unlisten())
+          .catch(() => {
+            // Ignore unlisten errors on teardown
+          });
+      }
+    };
+  }, [singleDispatch]);
 
   function handleLanguageChange(event: ChangeEvent<HTMLSelectElement>): void {
     const nextLang = event.target.value;
@@ -40,19 +78,23 @@ function AppContent(): ReactElement {
 
         <nav role="tablist" aria-label={t.mode} className="app-nav">
           <button
+            id="tab-single"
             type="button"
             className="tab"
             role="tab"
             aria-selected={activeTab === "single"}
+            aria-controls="panel-single"
             onClick={() => setActiveTab("single")}
           >
             {t.tabSingle}
           </button>
           <button
+            id="tab-batch"
             type="button"
             className="tab"
             role="tab"
             aria-selected={activeTab === "batch"}
+            aria-controls="panel-batch"
             onClick={() => setActiveTab("batch")}
           >
             {t.tabBatch}
@@ -91,11 +133,24 @@ function AppContent(): ReactElement {
       {/* Main layout: left parameter panel and active tab area */}
       <div className="app-body">
         <ParamsPanel />
-        <main
-          className="app-main"
-          role="tabpanel"
-          aria-label={activeTab === "single" ? t.tabSingle : t.tabBatch}
-        />
+        <main className="app-main">
+          <div
+            id="panel-single"
+            role="tabpanel"
+            aria-labelledby="tab-single"
+            hidden={activeTab !== "single"}
+            className="tabpanel"
+          >
+            <SingleConversionView />
+          </div>
+          <div
+            id="panel-batch"
+            role="tabpanel"
+            aria-labelledby="tab-batch"
+            hidden={activeTab !== "batch"}
+            className="tabpanel"
+          />
+        </main>
       </div>
     </div>
   );
