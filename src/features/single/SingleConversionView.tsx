@@ -19,6 +19,8 @@ import {
   FIT_PADDING,
   MAX_ZOOM,
   MIN_ZOOM,
+  MOUSE_BUTTON_MIDDLE,
+  MOUSE_BUTTON_PRIMARY,
   PIXELATED_ZOOM_THRESHOLD,
   ZOOM_STEP_FACTOR,
 } from "./constants";
@@ -164,8 +166,14 @@ export function SingleConversionView(): ReactElement {
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
-      if (e.button !== 0) {
+      if (
+        e.button !== MOUSE_BUTTON_PRIMARY &&
+        e.button !== MOUSE_BUTTON_MIDDLE
+      ) {
         return;
+      }
+      if (e.button === MOUSE_BUTTON_MIDDLE) {
+        e.preventDefault();
       }
       isDraggingRef.current = true;
       dragStartPosRef.current = { x: e.clientX, y: e.clientY };
@@ -174,6 +182,18 @@ export function SingleConversionView(): ReactElement {
     },
     [state.pan],
   );
+
+  const handleMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.button === MOUSE_BUTTON_MIDDLE) {
+      e.preventDefault();
+    }
+  }, []);
+
+  const handleAuxClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.button === MOUSE_BUTTON_MIDDLE) {
+      e.preventDefault();
+    }
+  }, []);
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
@@ -465,6 +485,9 @@ export function SingleConversionView(): ReactElement {
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerUp}
+            onMouseDown={handleMouseDown}
+            onAuxClick={handleAuxClick}
           >
             <div
               className="preview-content"
@@ -516,6 +539,9 @@ export function SingleConversionView(): ReactElement {
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerUp}
+            onMouseDown={handleMouseDown}
+            onAuxClick={handleAuxClick}
           >
             <div
               className="preview-content"
