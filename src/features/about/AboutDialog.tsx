@@ -1,0 +1,272 @@
+import { useEffect, useRef, useState, type ReactElement } from "react";
+import appLicenseText from "../../../LICENSE?raw";
+import { formatMessage } from "../../i18n";
+import type { AboutInfo } from "../../ipc";
+import { getAbout } from "../../ipc";
+import type { ThirdPartyLicense } from "../../licenses";
+import { useLanguage } from "../../state";
+
+export type AboutDialogProps = {
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+};
+
+export function AboutDialog({
+  isOpen,
+  onClose,
+}: AboutDialogProps): ReactElement | null {
+  const { t } = useLanguage();
+  const [aboutInfo, setAboutInfo] = useState<AboutInfo | null>(null);
+  const [licenses, setLicenses] = useState<readonly ThirdPartyLicense[] | null>(
+    null,
+  );
+  const [isLicensesExpanded, setIsLicensesExpanded] = useState(false);
+  const [isLoadingLicenses, setIsLoadingLicenses] = useState(false);
+
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
+
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+  if (prevIsOpen !== isOpen) {
+    setPrevIsOpen(isOpen);
+    if (!isOpen) {
+      setIsLicensesExpanded(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    // Move focus inside dialog upon opening
+    closeButtonRef.current?.focus();
+
+    let isMounted = true;
+
+    getAbout()
+      .then((info) => {
+        if (isMounted) {
+          setAboutInfo(info);
+        }
+      })
+      .catch(() => {
+        // Fallback gracefully if about info cannot be loaded
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen]);
+
+  function handleToggleLicenses(): void {
+    const nextExpanded = !isLicensesExpanded;
+    setIsLicensesExpanded(nextExpanded);
+
+    // Dynamically import third-party licenses only when user first expands the list
+    if (nextExpanded && licenses === null && !isLoadingLicenses) {
+      setIsLoadingLicenses(true);
+      import("../../licenses")
+        .then((mod) => {
+          setLicenses(mod.thirdPartyLicenses);
+        })
+        .catch(() => {
+          // Fallback gracefully if license bundle cannot be loaded
+        })
+        .finally(() => {
+          setIsLoadingLicenses(false);
+        });
+    }
+  }
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    function handleKeyDown(event: KeyboardEvent): void {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onCloseRef.current();
+        return;
+      }
+
+      if (event.key === "Tab") {
+        const dialogNode = dialogRef.current;
+        if (!dialogNode) {
+          return;
+        }
+
+        const focusableElements = dialogNode.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"]), details > summary',
+        );
+
+        if (focusableElements.length === 0) {
+          event.preventDefault();
+          return;
+        }
+
+        const firstElement = focusableElements[0];
+        const lastElement = focusableElements[focusableElements.length - 1];
+
+        if (event.shiftKey) {
+          if (
+            document.activeElement === firstElement ||
+            !dialogNode.contains(document.activeElement)
+          ) {
+            event.preventDefault();
+            lastElement.focus();
+          }
+        } else {
+          if (
+            document.activeElement === lastElement ||
+            !dialogNode.contains(document.activeElement)
+          ) {
+            event.preventDefault();
+            firstElement.focus();
+          }
+        }
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen]);
+
+  if (!isOpen) {
+    return null;
+  }
+
+  return (
+    <div
+      className="modal-overlay"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onCloseRef.current();
+        }
+      }}
+    >
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="about-dialog-title"
+        className="modal-dialog"
+      >
+        <div className="modal-header">
+          <h2 id="about-dialog-title" className="modal-title">
+            {t.aboutTitle}
+          </h2>
+          <button
+            ref={closeButtonRef}
+            type="button"
+            className="btn icon-btn"
+            aria-label={t.aboutClose}
+            onClick={() => onCloseRef.current()}
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="modal-body">
+          <div className="about-app-info">
+            <div className="about-app-name">{t.appTitle}</div>
+            <div
+              className="about-version"
+              aria-hidden={aboutInfo === null ? true : undefined}
+            >
+              {aboutInfo !== null
+                ? formatMessage(t.aboutVersion, { version: aboutInfo.version })
+                : "\u00A0"}
+            </div>
+          </div>
+
+          <section className="about-section">
+            <h3 className="about-section-title">{t.aboutAppLicense}</h3>
+            <pre className="license-box">{appLicenseText}</pre>
+          </section>
+
+          <section className="about-section">
+            <button
+              type="button"
+              className="btn about-toggle-btn"
+              aria-expanded={isLicensesExpanded}
+              aria-controls="about-third-party-licenses"
+              onClick={handleToggleLicenses}
+            >
+              {isLicensesExpanded
+                ? t.aboutHideThirdPartyLicenses
+                : t.aboutShowThirdPartyLicenses}
+            </button>
+            {isLicensesExpanded && (
+              <div
+                id="about-third-party-licenses"
+                className="about-licenses-container"
+              >
+                {licenses === null ? (
+                  <div className="about-loading">{t.aboutLoadingLicenses}</div>
+                ) : (
+                  <div className="about-licenses-list">
+                    {licenses.map((license, licenseIndex) => (
+                      <div
+                        key={`${license.id}-${licenseIndex}`}
+                        className="license-item"
+                      >
+                        <div className="license-item-header">
+                          {license.name}
+                        </div>
+                        <ul className="license-packages">
+                          {license.packages.map((pkg, pkgIndex) => (
+                            <li
+                              key={`${pkg.ecosystem}-${pkg.name}-${pkg.version}-${pkgIndex}`}
+                            >
+                              {pkg.name} {pkg.version}
+                            </li>
+                          ))}
+                        </ul>
+                        <details className="license-details">
+                          <summary>{t.aboutViewLicenseText}</summary>
+                          <pre className="license-box">{license.text}</pre>
+                        </details>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+        </div>
+
+        <div className="modal-footer">
+          <button
+            type="button"
+            className="btn"
+            onClick={() => onCloseRef.current()}
+          >
+            {t.aboutClose}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

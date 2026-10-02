@@ -2,6 +2,9 @@ import { ja } from "./ja";
 import { en } from "./en";
 import type { ErrorCode } from "../ipc/generated/ErrorCode";
 import type { IpcError } from "../ipc/generated/IpcError";
+import type { Language } from "../ipc/generated/Language";
+
+export type { Language };
 
 export type TranslationKeys = typeof ja;
 
@@ -10,8 +13,6 @@ const _enMatchesJa: TranslationKeys = en;
 const _jaMatchesEn: typeof en = ja;
 void _enMatchesJa;
 void _jaMatchesEn;
-
-export type Language = "ja" | "en";
 
 export const translations: Record<Language, TranslationKeys> = {
   ja,

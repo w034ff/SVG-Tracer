@@ -41,13 +41,25 @@ export type BatchConversionAction =
   | { type: "FINISH_BATCH"; finished: BatchFinishedPayload }
   | { type: "RESET" };
 
-export function createInitialBatchConversionState(): BatchConversionState {
+export function createInitialBatchConversionState(
+  inputDir?: PickBatchInputResult | null,
+  outputDir?: PickBatchOutputResult | null,
+): BatchConversionState {
+  const items: BatchItemRow[] = inputDir
+    ? inputDir.targets.map((name) => ({
+        name,
+        outputName: null,
+        status: "wait",
+        error: null,
+      }))
+    : [];
+
   return {
     status: "idle",
-    inputDir: null,
-    outputDir: null,
+    inputDir: inputDir ?? null,
+    outputDir: outputDir ?? null,
     progress: null,
-    items: [],
+    items,
     finished: null,
     error: null,
   };

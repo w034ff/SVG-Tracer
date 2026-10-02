@@ -94,4 +94,14 @@ export const ja = {
   batchCancelling: "キャンセル中…",
   batchDisabledDuringConversion: "変換中は設定を変更できません",
   batchProgressBarAria: "進捗",
+
+  aboutTitle: "このアプリについて",
+  aboutVersion: "バージョン {version}",
+  aboutAppLicense: "本アプリのライセンス (MIT)",
+  aboutThirdPartyLicenses: "第三者ライセンス一覧",
+  aboutShowThirdPartyLicenses: "第三者ライセンスを表示",
+  aboutHideThirdPartyLicenses: "第三者ライセンスを隠す",
+  aboutLoadingLicenses: "ライセンス一覧を読み込み中…",
+  aboutViewLicenseText: "ライセンス本文を表示",
+  aboutClose: "閉じる",
 };
