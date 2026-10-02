@@ -7,7 +7,12 @@ import {
   pickImage,
   saveSvg,
 } from "../../ipc";
-import { useLanguage, useParams, useSingleConversion } from "../../state";
+import {
+  useLanguage,
+  useParams,
+  useSingleConversion,
+  type PanOffset,
+} from "../../state";
 import {
   CONVERT_DEBOUNCE_MS,
   DEFAULT_ZOOM,
@@ -203,7 +208,7 @@ export function SingleConversionView(): ReactElement {
     [],
   );
 
-  // Ctrl + Wheel Zoom logic with callback refs and relative ZOOM_BY action
+  // Ctrl + Wheel Zoom logic with callback refs and anchored ZOOM_BY action
   const handleWheel = useCallback(
     (e: WheelEvent) => {
       if (!e.ctrlKey) {
@@ -211,7 +216,17 @@ export function SingleConversionView(): ReactElement {
       }
       e.preventDefault();
       const factor = e.deltaY < 0 ? ZOOM_STEP_FACTOR : 1 / ZOOM_STEP_FACTOR;
-      dispatch({ type: "ZOOM_BY", factor });
+
+      let anchor: PanOffset | undefined;
+      if (e.currentTarget instanceof HTMLElement) {
+        const rect = e.currentTarget.getBoundingClientRect();
+        anchor = {
+          x: e.clientX - (rect.left + rect.width / 2),
+          y: e.clientY - (rect.top + rect.height / 2),
+        };
+      }
+
+      dispatch({ type: "ZOOM_BY", factor, anchor });
     },
     [dispatch],
   );

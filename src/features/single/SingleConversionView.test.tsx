@@ -981,5 +981,149 @@ describe("SingleConversionView", () => {
         await screen.findByText("150%", { selector: "span" }),
       ).toBeInTheDocument();
     });
+
+    it("adjusts pan proportionally when clicking zoom in (+) button after panning", async () => {
+      renderSingleView();
+
+      fireEvent.click(screen.getByRole("button", { name: "画像を開く" }));
+
+      const origImg = await screen.findByAltText("元画像のプレビュー");
+      const origViewport = origImg.closest(".preview-viewport");
+      if (!origViewport) {
+        throw new Error("Viewport not found");
+      }
+
+      // Drag to pan from (100, 100) to (140, 160) -> pan becomes { x: 40, y: 60 }
+      fireEvent.pointerDown(origViewport, {
+        button: 0,
+        clientX: 100,
+        clientY: 100,
+        pointerId: 1,
+      });
+      fireEvent.pointerMove(origViewport, {
+        clientX: 140,
+        clientY: 160,
+        pointerId: 1,
+      });
+      fireEvent.pointerUp(origViewport, {
+        pointerId: 1,
+      });
+
+      const previewContentsBefore =
+        document.querySelectorAll(".preview-content");
+      expect(previewContentsBefore).toHaveLength(2);
+      previewContentsBefore.forEach((content) => {
+        expect(content).toHaveStyle({
+          transform: "translate(40px, 60px)",
+        });
+      });
+
+      // Click + button (zoom in): 100% -> 125%
+      // Since p = 0 for button zoom: pan' = pan * (z' / z) = { 40 * 1.25, 60 * 1.25 } = { 50, 75 }
+      const zoomInBtn = screen.getByRole("button", { name: "拡大" });
+      fireEvent.click(zoomInBtn);
+
+      expect(await screen.findByText("125%")).toBeInTheDocument();
+
+      const previewContentsAfter =
+        document.querySelectorAll(".preview-content");
+      expect(previewContentsAfter).toHaveLength(2);
+      previewContentsAfter.forEach((content) => {
+        expect(content).toHaveStyle({
+          transform: "translate(50px, 75px)",
+        });
+      });
+    });
+
+    it("adjusts pan according to anchor formula on Ctrl + Wheel when cursor is off pane center", async () => {
+      renderSingleView();
+
+      fireEvent.click(screen.getByRole("button", { name: "画像を開く" }));
+
+      const origImg = await screen.findByAltText("元画像のプレビュー");
+      const origViewport = origImg.closest(".preview-viewport");
+      if (!origViewport) {
+        throw new Error("Viewport not found");
+      }
+
+      // Mock getBoundingClientRect for the pane:
+      // left: 100, top: 100, width: 400, height: 300
+      // Center of pane: (100 + 400/2, 100 + 300/2) = (300, 250)
+      vi.spyOn(origViewport, "getBoundingClientRect").mockReturnValue({
+        left: 100,
+        top: 100,
+        width: 400,
+        height: 300,
+        right: 500,
+        bottom: 400,
+        x: 100,
+        y: 100,
+        toJSON: () => {},
+      });
+
+      // Cursor position: clientX = 380, clientY = 310
+      // Relative cursor position to pane center:
+      // p.x = 380 - 300 = 80
+      // p.y = 310 - 250 = 60
+      // Initial pan = { x: 0, y: 0 }, initial zoom = 1.0
+      // Zoom factor = 1.25 (zoom in: deltaY = -100)
+      // pan'.x = p.x - (p.x - pan.x) * (z' / z) = 80 - (80 - 0) * 1.25 = 80 - 100 = -20
+      // pan'.y = p.y - (p.y - pan.y) * (z' / z) = 60 - (60 - 0) * 1.25 = 60 - 75 = -15
+      const zoomInWheel = new WheelEvent("wheel", {
+        ctrlKey: true,
+        deltaY: -100,
+        clientX: 380,
+        clientY: 310,
+        bubbles: true,
+        cancelable: true,
+      });
+
+      act(() => {
+        origViewport.dispatchEvent(zoomInWheel);
+      });
+
+      expect(
+        await screen.findByText("125%", { selector: "span" }),
+      ).toBeInTheDocument();
+
+      const previewContents = document.querySelectorAll(".preview-content");
+      expect(previewContents).toHaveLength(2);
+      previewContents.forEach((content) => {
+        expect(content).toHaveStyle({
+          transform: "translate(-20px, -15px)",
+        });
+      });
+
+      // Now zoom out with cursor at the same position:
+      // Current pan = { x: -20, y: -15 }, current zoom = 1.25
+      // Zoom factor = 1 / 1.25 = 0.8 (zoom out: deltaY = 100) -> new zoom = 1.0
+      // pan'.x = 80 - (80 - (-20)) * 0.8 = 80 - 100 * 0.8 = 0
+      // pan'.y = 60 - (60 - (-15)) * 0.8 = 60 - 75 * 0.8 = 0
+      const zoomOutWheel = new WheelEvent("wheel", {
+        ctrlKey: true,
+        deltaY: 100,
+        clientX: 380,
+        clientY: 310,
+        bubbles: true,
+        cancelable: true,
+      });
+
+      act(() => {
+        origViewport.dispatchEvent(zoomOutWheel);
+      });
+
+      expect(
+        await screen.findByText("100%", { selector: "span" }),
+      ).toBeInTheDocument();
+
+      const previewContentsReverted =
+        document.querySelectorAll(".preview-content");
+      expect(previewContentsReverted).toHaveLength(2);
+      previewContentsReverted.forEach((content) => {
+        expect(content).toHaveStyle({
+          transform: "translate(0px, 0px)",
+        });
+      });
+    });
   });
 });
