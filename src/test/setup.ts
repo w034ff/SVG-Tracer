@@ -1,5 +1,4 @@
 import "@testing-library/jest-dom/vitest";
-import { afterEach } from "vitest";
 
 if (typeof window.URL.createObjectURL === "undefined") {
   let counter = 0;
@@ -20,15 +19,3 @@ if (typeof Element.prototype.setPointerCapture === "undefined") {
 if (typeof Element.prototype.releasePointerCapture === "undefined") {
   Element.prototype.releasePointerCapture = (): void => {};
 }
-
-afterEach(() => {
-  if (
-    typeof window !== "undefined" &&
-    "__TAURI_EVENT_PLUGIN_INTERNALS__" in window
-  ) {
-    const internals = window.__TAURI_EVENT_PLUGIN_INTERNALS__;
-    if (typeof internals === "object" && internals !== null) {
-      Reflect.set(internals, "unregisterListener", () => {});
-    }
-  }
-});

@@ -187,31 +187,7 @@ export async function cancelBatch(): Promise<void> {
 export async function onImageDropped(
   handler: (payload: ImageDroppedPayload) => void,
 ): Promise<UnlistenFn> {
-  try {
-    const unlisten = await listen<ImageDroppedPayload>(
-      "image-dropped",
-      (event) => {
-        handler(event.payload);
-      },
-    );
-    return () => {
-      try {
-        const res: unknown = unlisten();
-        if (
-          typeof res === "object" &&
-          res !== null &&
-          "catch" in res &&
-          typeof res.catch === "function"
-        ) {
-          res.catch(() => {
-            // Ignore unlisten errors on teardown
-          });
-        }
-      } catch {
-        // Ignore synchronous unlisten errors on teardown
-      }
-    };
-  } catch {
-    return () => {};
-  }
+  return listen<ImageDroppedPayload>("image-dropped", (event) => {
+    handler(event.payload);
+  });
 }

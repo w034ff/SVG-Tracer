@@ -39,8 +39,12 @@ function AppContent(): ReactElement {
       isMounted = false;
       if (unlistenPromise) {
         void unlistenPromise
-          .then((unlisten) => {
-            unlisten();
+          .then(async (unlisten) => {
+            try {
+              await unlisten();
+            } catch {
+              // Ignore unlisten errors on teardown
+            }
           })
           .catch(() => {
             // Ignore unlisten errors on teardown
@@ -80,19 +84,23 @@ function AppContent(): ReactElement {
 
         <nav role="tablist" aria-label={t.mode} className="app-nav">
           <button
+            id="tab-single"
             type="button"
             className="tab"
             role="tab"
             aria-selected={activeTab === "single"}
+            aria-controls="panel-single"
             onClick={() => setActiveTab("single")}
           >
             {t.tabSingle}
           </button>
           <button
+            id="tab-batch"
             type="button"
             className="tab"
             role="tab"
             aria-selected={activeTab === "batch"}
+            aria-controls="panel-batch"
             onClick={() => setActiveTab("batch")}
           >
             {t.tabBatch}
@@ -131,12 +139,23 @@ function AppContent(): ReactElement {
       {/* Main layout: left parameter panel and active tab area */}
       <div className="app-body">
         <ParamsPanel />
-        <main
-          className="app-main"
-          role="tabpanel"
-          aria-label={activeTab === "single" ? t.tabSingle : t.tabBatch}
-        >
-          {activeTab === "single" ? <SingleConversionView /> : null}
+        <main className="app-main">
+          <div
+            id="panel-single"
+            role="tabpanel"
+            aria-labelledby="tab-single"
+            hidden={activeTab !== "single"}
+            className="tabpanel"
+          >
+            <SingleConversionView />
+          </div>
+          <div
+            id="panel-batch"
+            role="tabpanel"
+            aria-labelledby="tab-batch"
+            hidden={activeTab !== "batch"}
+            className="tabpanel"
+          />
         </main>
       </div>
     </div>

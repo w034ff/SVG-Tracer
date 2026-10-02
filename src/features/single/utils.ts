@@ -22,13 +22,17 @@ export function formatDuration(elapsedMs: number, unitLabel: string): string {
 }
 
 /**
- * Extracts uppercase image format from the file extension (e.g. "PNG").
+ * Extracts uppercase image format from the file extension (e.g. "PNG", "JPEG").
+ * Normalizes JPG/JPEG to "JPEG", and returns empty string if no extension is present.
  */
 export function getImageFormatLabel(fileName: string): string {
   const lastDotIndex = fileName.lastIndexOf(".");
   if (lastDotIndex !== -1 && lastDotIndex < fileName.length - 1) {
-    const ext = fileName.slice(lastDotIndex + 1);
-    return ext.toUpperCase();
+    const ext = fileName.slice(lastDotIndex + 1).toUpperCase();
+    if (ext === "JPG" || ext === "JPEG") {
+      return "JPEG";
+    }
+    return ext;
   }
-  return "PNG";
+  return "";
 }

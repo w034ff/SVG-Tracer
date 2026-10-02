@@ -27,54 +27,68 @@ export function SingleConversionView(): ReactElement {
   const seqRef = useRef<number>(0);
   const previewUrlRef = useRef<string | null>(null);
   const svgUrlRef = useRef<string | null>(null);
-  const originalPaneRef = useRef<HTMLDivElement | null>(null);
-  const svgPaneRef = useRef<HTMLDivElement | null>(null);
+  const currentImageIdRef = useRef<string | null>(null);
+  const prevImageIdRef = useRef<string | null>(null);
 
-  // Keep track of latest blob URLs for cleanup
-  useEffect(() => {
-    previewUrlRef.current = state.previewUrl;
-  }, [state.previewUrl]);
+  const revokePreviewUrl = useCallback(() => {
+    if (previewUrlRef.current) {
+      URL.revokeObjectURL(previewUrlRef.current);
+      previewUrlRef.current = null;
+    }
+  }, []);
 
-  useEffect(() => {
-    svgUrlRef.current = state.svgUrl;
-  }, [state.svgUrl]);
+  const revokeSvgUrl = useCallback(() => {
+    if (svgUrlRef.current) {
+      URL.revokeObjectURL(svgUrlRef.current);
+      svgUrlRef.current = null;
+    }
+  }, []);
 
-  // Clean up object URLs on unmount
+  const revokeAllUrls = useCallback(() => {
+    revokePreviewUrl();
+    revokeSvgUrl();
+  }, [revokePreviewUrl, revokeSvgUrl]);
+
+  // Clean up object URLs on component unmount
   useEffect(() => {
     return () => {
-      if (previewUrlRef.current) {
-        URL.revokeObjectURL(previewUrlRef.current);
-      }
-      if (svgUrlRef.current) {
-        URL.revokeObjectURL(svgUrlRef.current);
-      }
+      revokeAllUrls();
     };
-  }, []);
+  }, [revokeAllUrls]);
+
+  // Track image changes to invalidate in-flight conversions and revoke previous URLs immediately
+  useEffect(() => {
+    const currentId = state.image?.id ?? null;
+    currentImageIdRef.current = currentId;
+
+    if (prevImageIdRef.current !== currentId) {
+      seqRef.current += 1;
+      revokeAllUrls();
+      prevImageIdRef.current = currentId;
+    }
+  }, [state.image?.id, revokeAllUrls]);
 
   // Handle image loading (load_preview) when image changes
   useEffect(() => {
-    const image = state.image;
-    if (!image) {
+    const imageId = state.image?.id;
+    if (!imageId) {
       return;
     }
 
     let isCurrent = true;
-
-    loadPreview(image.id)
+    loadPreview(imageId)
       .then((bytes) => {
-        if (!isCurrent) {
+        if (!isCurrent || imageId !== currentImageIdRef.current) {
           return;
         }
-        if (previewUrlRef.current) {
-          URL.revokeObjectURL(previewUrlRef.current);
-        }
+        revokePreviewUrl();
         const blob = new Blob([bytes], { type: "image/png" });
         const url = URL.createObjectURL(blob);
         previewUrlRef.current = url;
         dispatch({ type: "SET_PREVIEW", previewUrl: url });
       })
       .catch((error: unknown) => {
-        if (!isCurrent) {
+        if (!isCurrent || imageId !== currentImageIdRef.current) {
           return;
         }
         const ipcError = normalizeIpcError(error);
@@ -84,13 +98,13 @@ export function SingleConversionView(): ReactElement {
     return () => {
       isCurrent = false;
     };
-  }, [state.image, dispatch]);
+  }, [state.image?.id, dispatch, revokePreviewUrl]);
 
   // Handle conversion with debouncing (300ms)
   useEffect(() => {
-    const image = state.image;
+    const imageId = state.image?.id;
     const params = paramsState.params;
-    if (!image || !params) {
+    if (!imageId || !params) {
       return;
     }
 
@@ -99,14 +113,15 @@ export function SingleConversionView(): ReactElement {
       const thisSeq = seqRef.current;
       dispatch({ type: "START_CONVERT" });
 
-      convert(image.id, params, thisSeq)
+      convert(imageId, params, thisSeq)
         .then((result) => {
-          if (thisSeq !== seqRef.current) {
+          if (
+            thisSeq !== seqRef.current ||
+            imageId !== currentImageIdRef.current
+          ) {
             return;
           }
-          if (svgUrlRef.current) {
-            URL.revokeObjectURL(svgUrlRef.current);
-          }
+          revokeSvgUrl();
           const blob = new Blob([result.svg], { type: "image/svg+xml" });
           const url = URL.createObjectURL(blob);
           svgUrlRef.current = url;
@@ -118,7 +133,10 @@ export function SingleConversionView(): ReactElement {
           });
         })
         .catch((error: unknown) => {
-          if (thisSeq !== seqRef.current) {
+          if (
+            thisSeq !== seqRef.current ||
+            imageId !== currentImageIdRef.current
+          ) {
             return;
           }
           const ipcError = normalizeIpcError(error);
@@ -132,7 +150,7 @@ export function SingleConversionView(): ReactElement {
     return () => {
       clearTimeout(timer);
     };
-  }, [state.image, paramsState.params, dispatch]);
+  }, [state.image?.id, paramsState.params, dispatch, revokeSvgUrl]);
 
   // Shared dragging (Pan) logic
   const isDraggingRef = useRef(false);
@@ -185,37 +203,53 @@ export function SingleConversionView(): ReactElement {
     [],
   );
 
-  // Ctrl + Wheel Zoom logic with passive: false
-  useEffect(() => {
-    const handleWheel = (e: WheelEvent) => {
+  // Ctrl + Wheel Zoom logic with callback refs and relative ZOOM_BY action
+  const handleWheel = useCallback(
+    (e: WheelEvent) => {
       if (!e.ctrlKey) {
         return;
       }
       e.preventDefault();
-      const currentZoom = state.zoom;
       const factor = e.deltaY < 0 ? ZOOM_STEP_FACTOR : 1 / ZOOM_STEP_FACTOR;
-      const nextZoom = currentZoom * factor;
-      dispatch({ type: "SET_ZOOM", zoom: nextZoom });
-    };
+      dispatch({ type: "ZOOM_BY", factor });
+    },
+    [dispatch],
+  );
 
-    const origPane = originalPaneRef.current;
-    const svgPane = svgPaneRef.current;
+  const originalPaneRef = useRef<HTMLDivElement | null>(null);
+  const setOriginalPaneRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      if (originalPaneRef.current) {
+        originalPaneRef.current.removeEventListener("wheel", handleWheel);
+      }
+      originalPaneRef.current = node;
+      if (node) {
+        node.addEventListener("wheel", handleWheel, { passive: false });
+      }
+    },
+    [handleWheel],
+  );
 
-    origPane?.addEventListener("wheel", handleWheel, { passive: false });
-    svgPane?.addEventListener("wheel", handleWheel, { passive: false });
-
-    return () => {
-      origPane?.removeEventListener("wheel", handleWheel);
-      svgPane?.removeEventListener("wheel", handleWheel);
-    };
-  }, [state.zoom, dispatch]);
+  const svgPaneRef = useRef<HTMLDivElement | null>(null);
+  const setSvgPaneRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      if (svgPaneRef.current) {
+        svgPaneRef.current.removeEventListener("wheel", handleWheel);
+      }
+      svgPaneRef.current = node;
+      if (node) {
+        node.addEventListener("wheel", handleWheel, { passive: false });
+      }
+    },
+    [handleWheel],
+  );
 
   const handleZoomIn = () => {
-    dispatch({ type: "SET_ZOOM", zoom: state.zoom * ZOOM_STEP_FACTOR });
+    dispatch({ type: "ZOOM_BY", factor: ZOOM_STEP_FACTOR });
   };
 
   const handleZoomOut = () => {
-    dispatch({ type: "SET_ZOOM", zoom: state.zoom / ZOOM_STEP_FACTOR });
+    dispatch({ type: "ZOOM_BY", factor: 1 / ZOOM_STEP_FACTOR });
   };
 
   const handleZoom100 = () => {
@@ -228,7 +262,7 @@ export function SingleConversionView(): ReactElement {
 
   const handleZoomFit = () => {
     const dims = state.imageDimensions;
-    const pane = originalPaneRef.current;
+    const pane = originalPaneRef.current ?? svgPaneRef.current;
     if (!dims || !pane) {
       dispatch({
         type: "SET_ZOOM_AND_PAN",
@@ -332,9 +366,14 @@ export function SingleConversionView(): ReactElement {
 
   // Active state (image selected)
   const formatLabel = getImageFormatLabel(state.image.name);
-  const dimsText = dims
-    ? `${dims.width} × ${dims.height} · ${formatLabel}`
-    : `· ${formatLabel}`;
+  const dimsPart = dims ? `${dims.width} × ${dims.height}` : "";
+  const dimsText = dimsPart
+    ? formatLabel
+      ? `${dimsPart} · ${formatLabel}`
+      : dimsPart
+    : formatLabel
+      ? `· ${formatLabel}`
+      : "";
 
   return (
     <div className="single-view">
@@ -347,7 +386,7 @@ export function SingleConversionView(): ReactElement {
       {/* Toolbar */}
       <div className="single-toolbar">
         <span className="single-filename">{state.image.name}</span>
-        <span className="val">{dimsText}</span>
+        {dimsText.length > 0 && <span className="val">{dimsText}</span>}
         <div className="app-spacer" />
         <button
           type="button"
@@ -410,7 +449,7 @@ export function SingleConversionView(): ReactElement {
         <section className="preview-pane">
           <div className="preview-pane-header">{t.originalImage}</div>
           <div
-            ref={originalPaneRef}
+            ref={setOriginalPaneRef}
             className="preview-viewport checker"
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
@@ -461,7 +500,7 @@ export function SingleConversionView(): ReactElement {
         <section className="preview-pane">
           <div className="preview-pane-header">{t.svgImage}</div>
           <div
-            ref={svgPaneRef}
+            ref={setSvgPaneRef}
             className="preview-viewport checker"
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}

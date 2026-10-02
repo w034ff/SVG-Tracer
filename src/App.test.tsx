@@ -32,6 +32,18 @@ const TEST_SPEC: ParamSpec = {
 };
 
 describe("App", () => {
+  beforeEach(() => {
+    mockIPC(
+      (cmd) => {
+        if (cmd === "load_preview") {
+          return new Uint8Array([137, 80, 78, 71]).buffer;
+        }
+        return null;
+      },
+      { shouldMockEvents: true },
+    );
+  });
+
   afterEach(() => {
     clearMocks();
   });
@@ -157,5 +169,99 @@ describe("App", () => {
 
     // The single conversion view should display the dropped image's name
     expect(await screen.findByText("dropped_logo.png")).toBeInTheDocument();
+  });
+
+  it("preserves preview and svg URLs and does not re-call load_preview or convert when switching tabs", async () => {
+    const { emit } = await import("@tauri-apps/api/event");
+
+    let loadPreviewCalls = 0;
+    let convertCalls = 0;
+
+    mockIPC(
+      (cmd) => {
+        if (cmd === "load_preview") {
+          loadPreviewCalls += 1;
+          return new Uint8Array([137, 80, 78, 71]).buffer;
+        }
+        if (cmd === "convert") {
+          convertCalls += 1;
+          return {
+            svg: '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"></svg>',
+            pathCount: 10,
+            bytes: 100,
+            elapsedMs: 20,
+          };
+        }
+        return null;
+      },
+      { shouldMockEvents: true },
+    );
+
+    const revokedUrls: string[] = [];
+    const origRevoke = window.URL.revokeObjectURL;
+    vi.spyOn(window.URL, "revokeObjectURL").mockImplementation((url) => {
+      revokedUrls.push(url);
+      origRevoke(url);
+    });
+
+    try {
+      render(<App initialSpec={TEST_SPEC} initialLanguage="ja" />);
+
+      // Load an image via image-dropped
+      await act(async () => {
+        await emit("image-dropped", {
+          id: "tab-test-id",
+          name: "tab_test.png",
+        });
+      });
+
+      expect(await screen.findByText("tab_test.png")).toBeInTheDocument();
+
+      // Wait for load_preview and convert to complete
+      const previewImg = await screen.findByAltText("元画像のプレビュー");
+      const svgImg = await screen.findByAltText("SVG のプレビュー");
+
+      const previewSrc = previewImg.getAttribute("src");
+      const svgSrc = svgImg.getAttribute("src");
+      expect(previewSrc).toBeTruthy();
+      expect(svgSrc).toBeTruthy();
+      expect(loadPreviewCalls).toBe(1);
+      expect(convertCalls).toBe(1);
+
+      // Switch to Batch tab
+      const batchTab = screen.getByRole("tab", { name: "一括変換" });
+      const singleTab = screen.getByRole("tab", { name: "単体変換" });
+      fireEvent.click(batchTab);
+
+      expect(batchTab).toHaveAttribute("aria-selected", "true");
+      expect(singleTab).toHaveAttribute("aria-selected", "false");
+
+      // Verify URLs were NOT revoked when hidden
+      if (!previewSrc || !svgSrc) {
+        throw new Error("Preview or SVG URL is missing");
+      }
+      expect(revokedUrls).not.toContain(previewSrc);
+      expect(revokedUrls).not.toContain(svgSrc);
+
+      // Switch back to Single tab
+      fireEvent.click(singleTab);
+      expect(singleTab).toHaveAttribute("aria-selected", "true");
+
+      // Verify the active image elements still display the same valid URLs
+      const activePreview = screen.getByAltText("元画像のプレビュー");
+      const activeSvg = screen.getByAltText("SVG のプレビュー");
+      expect(activePreview.getAttribute("src")).toBe(previewSrc);
+      expect(activeSvg.getAttribute("src")).toBe(svgSrc);
+
+      // Neither URL should have been revoked
+      expect(revokedUrls).not.toContain(previewSrc);
+      expect(revokedUrls).not.toContain(svgSrc);
+
+      // Neither load_preview nor convert should have been called again
+      expect(loadPreviewCalls).toBe(1);
+      expect(convertCalls).toBe(1);
+    } finally {
+      window.URL.revokeObjectURL = origRevoke;
+    }
   });
 });

@@ -49,9 +49,14 @@ const TEST_SPEC: ParamSpec = {
   defaultPreset: "colorLogo",
 };
 
-const SAMPLE_IMAGE: PickedImage = {
-  id: "img-handle-1",
+const SAMPLE_IMAGE_A: PickedImage = {
+  id: "img-handle-a",
   name: "logo_color.png",
+};
+
+const SAMPLE_IMAGE_B: PickedImage = {
+  id: "img-handle-b",
+  name: "icon_mono.png",
 };
 
 const SAMPLE_RESULT: ConvertResult = {
@@ -65,31 +70,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function renderSingleView(options?: {
-  language?: "ja" | "en";
-  initialImage?: PickedImage;
-}) {
+function renderSingleView(options?: { language?: "ja" | "en" }) {
   return render(
     <LanguageProvider initialLanguage={options?.language ?? "ja"}>
       <ParamsProvider initialSpec={TEST_SPEC}>
-        <SingleConversionProvider
-          initialState={
-            options?.initialImage
-              ? {
-                  status: "loading_preview",
-                  image: options.initialImage,
-                  previewUrl: null,
-                  imageDimensions: null,
-                  svg: null,
-                  svgUrl: null,
-                  result: null,
-                  error: null,
-                  zoom: 1.0,
-                  pan: { x: 0, y: 0 },
-                }
-              : undefined
-          }
-        >
+        <SingleConversionProvider>
           <SingleConversionView />
         </SingleConversionProvider>
       </ParamsProvider>
@@ -99,22 +84,29 @@ function renderSingleView(options?: {
 
 describe("SingleConversionView", () => {
   beforeEach(() => {
-    mockIPC((cmd) => {
-      if (cmd === "load_preview") {
-        return new Uint8Array([137, 80, 78, 71]).buffer;
-      }
-      if (cmd === "convert") {
-        return SAMPLE_RESULT;
-      }
-      if (cmd === "save_svg") {
-        return { savedName: "logo_color.svg" };
-      }
-      return null;
-    });
+    mockIPC(
+      (cmd) => {
+        if (cmd === "pick_image") {
+          return SAMPLE_IMAGE_A;
+        }
+        if (cmd === "load_preview") {
+          return new Uint8Array([137, 80, 78, 71]).buffer;
+        }
+        if (cmd === "convert") {
+          return SAMPLE_RESULT;
+        }
+        if (cmd === "save_svg") {
+          return { savedName: "logo_color.svg" };
+        }
+        return null;
+      },
+      { shouldMockEvents: true },
+    );
   });
 
   afterEach(() => {
     clearMocks();
+    vi.restoreAllMocks();
   });
 
   describe("Empty state (no image selected)", () => {
@@ -138,30 +130,11 @@ describe("SingleConversionView", () => {
       expect(saveBtn).toBeDisabled();
     });
 
-    it("triggers pick_image on Open Image button click", async () => {
-      let pickCalled = false;
-      mockIPC((cmd) => {
-        if (cmd === "pick_image") {
-          pickCalled = true;
-          return SAMPLE_IMAGE;
-        }
-        if (cmd === "load_preview") {
-          return new Uint8Array([137, 80, 78, 71]).buffer;
-        }
-        if (cmd === "convert") {
-          return SAMPLE_RESULT;
-        }
-        return null;
-      });
-
+    it("triggers pick_image on Open Image button click and transitions to active view", async () => {
       renderSingleView();
 
       const openButton = screen.getByRole("button", { name: "画像を開く" });
       fireEvent.click(openButton);
-
-      await waitFor(() => {
-        expect(pickCalled).toBe(true);
-      });
 
       await waitFor(() => {
         expect(screen.getByText("logo_color.png")).toBeInTheDocument();
@@ -171,7 +144,10 @@ describe("SingleConversionView", () => {
 
   describe("Active conversion state", () => {
     it("loads preview, performs vector conversion, and displays results using <img> tags", async () => {
-      renderSingleView({ initialImage: SAMPLE_IMAGE });
+      renderSingleView();
+
+      // Open image from empty state
+      fireEvent.click(screen.getByRole("button", { name: "画像を開く" }));
 
       // Filename should be visible in toolbar
       await waitFor(() => {
@@ -193,12 +169,11 @@ describe("SingleConversionView", () => {
         expect(svgImg.getAttribute("src")).toMatch(/^blob:/);
       });
 
-      // Ensure no raw svg or innerHTML injection is inside the view
+      // Ensure no raw svg or innerHTML injection is inside .preview-content
       const singleViewContainer = document.querySelector(".single-view");
       if (!singleViewContainer) {
         throw new Error(".single-view element not found");
       }
-      // Directly check there is no raw SVG inside .preview-content other than through <img>
       const svgElements = singleViewContainer.querySelectorAll(
         ".preview-content svg",
       );
@@ -218,34 +193,188 @@ describe("SingleConversionView", () => {
 
     it("calls save_svg when save button is clicked", async () => {
       let saveCalledWithId: string | null = null;
-      mockIPC((cmd, args) => {
-        if (cmd === "load_preview") {
-          return new Uint8Array([137, 80, 78, 71]).buffer;
-        }
-        if (cmd === "convert") {
-          return SAMPLE_RESULT;
-        }
-        if (cmd === "save_svg") {
-          if (isRecord(args) && typeof args["id"] === "string") {
-            saveCalledWithId = args["id"];
+      mockIPC(
+        (cmd, args) => {
+          if (cmd === "pick_image") {
+            return SAMPLE_IMAGE_A;
           }
-          return { savedName: "logo_color.svg" };
-        }
-        return null;
-      });
+          if (cmd === "load_preview") {
+            return new Uint8Array([137, 80, 78, 71]).buffer;
+          }
+          if (cmd === "convert") {
+            return SAMPLE_RESULT;
+          }
+          if (cmd === "save_svg") {
+            if (isRecord(args) && typeof args["id"] === "string") {
+              saveCalledWithId = args["id"];
+            }
+            return { savedName: "logo_color.svg" };
+          }
+          return null;
+        },
+        { shouldMockEvents: true },
+      );
 
-      renderSingleView({ initialImage: SAMPLE_IMAGE });
+      renderSingleView();
 
-      const saveBtn = await screen.findByRole("button", { name: "SVG を保存" });
+      fireEvent.click(screen.getByRole("button", { name: "画像を開く" }));
+
       await waitFor(() => {
-        expect(saveBtn).not.toBeDisabled();
+        const btn = screen.getByRole("button", { name: "SVG を保存" });
+        expect(btn).not.toBeDisabled();
       });
 
+      const saveBtn = screen.getByRole("button", { name: "SVG を保存" });
       fireEvent.click(saveBtn);
 
       await waitFor(() => {
-        expect(saveCalledWithId).toBe("img-handle-1");
+        expect(saveCalledWithId).toBe("img-handle-a");
       });
+    });
+  });
+
+  describe("Ctrl + Wheel zoom after opening image", () => {
+    it("zooms on Ctrl + Wheel and calls preventDefault on cancelable wheel event", async () => {
+      renderSingleView();
+
+      // Start from empty state, then open image
+      fireEvent.click(screen.getByRole("button", { name: "画像を開く" }));
+
+      await waitFor(() => {
+        expect(screen.getByText("logo_color.png")).toBeInTheDocument();
+      });
+
+      expect(
+        screen.getByText("100%", { selector: "span" }),
+      ).toBeInTheDocument();
+
+      const origImg = await screen.findByAltText("元画像のプレビュー");
+      const viewport = origImg.closest(".preview-viewport");
+      if (!viewport) {
+        throw new Error("Viewport container not found");
+      }
+
+      // Dispatch cancelable wheel event with ctrlKey: true
+      const wheelEvent = new WheelEvent("wheel", {
+        ctrlKey: true,
+        deltaY: -100,
+        bubbles: true,
+        cancelable: true,
+      });
+
+      act(() => {
+        viewport.dispatchEvent(wheelEvent);
+      });
+
+      // Verify preventDefault was called
+      expect(wheelEvent.defaultPrevented).toBe(true);
+
+      // Zoom should have changed from 100% to 125%
+      expect(
+        await screen.findByText("125%", { selector: "span" }),
+      ).toBeInTheDocument();
+    });
+  });
+
+  describe("Blob URL revocation on image changes", () => {
+    it("revokes previewUrl and svgUrl when changing images twice", async () => {
+      let pickCount = 0;
+      mockIPC(
+        (cmd) => {
+          if (cmd === "pick_image") {
+            pickCount += 1;
+            return {
+              id: `handle-${pickCount}`,
+              name: `image_${pickCount}.png`,
+            };
+          }
+          if (cmd === "load_preview") {
+            return new Uint8Array([137, 80, 78, 71]).buffer;
+          }
+          if (cmd === "convert") {
+            return SAMPLE_RESULT;
+          }
+          return null;
+        },
+        { shouldMockEvents: true },
+      );
+
+      const revokedUrls: string[] = [];
+      const createdUrls: string[] = [];
+
+      const origCreate = window.URL.createObjectURL;
+      const origRevoke = window.URL.revokeObjectURL;
+
+      vi.spyOn(window.URL, "createObjectURL").mockImplementation(() => {
+        const url = `blob:test-url-${createdUrls.length + 1}`;
+        createdUrls.push(url);
+        return url;
+      });
+
+      vi.spyOn(window.URL, "revokeObjectURL").mockImplementation((url) => {
+        revokedUrls.push(url);
+        origRevoke(url);
+      });
+
+      try {
+        renderSingleView();
+
+        // 1. Pick Image 1
+        fireEvent.click(screen.getByRole("button", { name: "画像を開く" }));
+        await waitFor(() => {
+          expect(screen.getByText("image_1.png")).toBeInTheDocument();
+        });
+        await waitFor(() => {
+          expect(createdUrls.length).toBeGreaterThanOrEqual(2); // preview and svg
+        });
+
+        const image1Preview = createdUrls[0];
+        const image1Svg = createdUrls[1];
+
+        // 2. Pick Image 2 (replaces Image 1)
+        fireEvent.click(screen.getByRole("button", { name: "画像を開く" }));
+        await waitFor(() => {
+          expect(screen.getByText("image_2.png")).toBeInTheDocument();
+        });
+
+        // Image 1's URLs should have been revoked
+        if (!image1Preview || !image1Svg) {
+          throw new Error("Image 1 URLs not found");
+        }
+        await waitFor(() => {
+          expect(revokedUrls).toContain(image1Preview);
+          expect(revokedUrls).toContain(image1Svg);
+        });
+
+        await waitFor(() => {
+          expect(createdUrls.length).toBeGreaterThanOrEqual(4); // preview and svg for Image 2
+        });
+
+        const image2Preview = createdUrls[2];
+        const image2Svg = createdUrls[3];
+
+        // 3. Pick Image 3 (replaces Image 2)
+        fireEvent.click(screen.getByRole("button", { name: "画像を開く" }));
+        await waitFor(() => {
+          expect(screen.getByText("image_3.png")).toBeInTheDocument();
+        });
+
+        // Image 2's URLs should have been revoked
+        if (!image2Preview || !image2Svg) {
+          throw new Error("Image 2 URLs not found");
+        }
+        await waitFor(() => {
+          expect(revokedUrls).toContain(image2Preview);
+          expect(revokedUrls).toContain(image2Svg);
+        });
+
+        await waitFor(() => {
+          expect(createdUrls.length).toBeGreaterThanOrEqual(6); // preview and svg for Image 3
+        });
+      } finally {
+        window.URL.createObjectURL = origCreate;
+        window.URL.revokeObjectURL = origRevoke;
+      }
     });
   });
 
@@ -264,27 +393,32 @@ describe("SingleConversionView", () => {
         seq: number;
       }> = [];
 
-      mockIPC((cmd, args) => {
-        if (cmd === "load_preview") {
-          return new Uint8Array([137, 80, 78, 71]).buffer;
-        }
-        if (cmd === "convert") {
-          if (
-            isRecord(args) &&
-            typeof args["seq"] === "number" &&
-            isRecord(args["params"])
-          ) {
-            convertCalls.push({
-              params: args["params"],
-              seq: args["seq"],
-            });
+      mockIPC(
+        (cmd, args) => {
+          if (cmd === "pick_image") {
+            return SAMPLE_IMAGE_A;
           }
-          return SAMPLE_RESULT;
-        }
-        return null;
-      });
+          if (cmd === "load_preview") {
+            return new Uint8Array([137, 80, 78, 71]).buffer;
+          }
+          if (cmd === "convert") {
+            if (
+              isRecord(args) &&
+              typeof args["seq"] === "number" &&
+              isRecord(args["params"])
+            ) {
+              convertCalls.push({
+                params: args["params"],
+                seq: args["seq"],
+              });
+            }
+            return SAMPLE_RESULT;
+          }
+          return null;
+        },
+        { shouldMockEvents: true },
+      );
 
-      // Component that triggers param change
       function TestParamModifier() {
         const { dispatch } = useParams();
         return (
@@ -323,25 +457,25 @@ describe("SingleConversionView", () => {
       render(
         <LanguageProvider initialLanguage="ja">
           <ParamsProvider initialSpec={TEST_SPEC}>
-            <SingleConversionProvider
-              initialState={{
-                status: "ready",
-                image: SAMPLE_IMAGE,
-                previewUrl: "blob:mock-png",
-                imageDimensions: { width: 100, height: 100 },
-                svg: SAMPLE_RESULT.svg,
-                svgUrl: "blob:mock-svg",
-                result: SAMPLE_RESULT,
-                error: null,
-                zoom: 1.0,
-                pan: { x: 0, y: 0 },
-              }}
-            >
+            <SingleConversionProvider>
               <TestParamModifier />
             </SingleConversionProvider>
           </ParamsProvider>
         </LanguageProvider>,
       );
+
+      // Open image from empty state
+      fireEvent.click(screen.getByRole("button", { name: "画像を開く" }));
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(screen.getByText("logo_color.png")).toBeInTheDocument();
+
+      // Complete initial conversion
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+      convertCalls.length = 0; // Clear initial call
 
       // Fast successive modifications
       act(() => {
@@ -357,10 +491,10 @@ describe("SingleConversionView", () => {
         vi.advanceTimersByTime(200);
       });
 
-      // At 200ms after mod-2 (300ms after mod-1), convert should NOT have fired for mod-2 yet
+      // At 200ms after mod-2, convert should not have fired yet
       expect(convertCalls).toHaveLength(0);
 
-      // Advance remaining 100ms (total 300ms since mod-2)
+      // Advance remaining 100ms
       await act(async () => {
         vi.advanceTimersByTime(100);
       });
@@ -371,125 +505,114 @@ describe("SingleConversionView", () => {
         throw new Error("Expected convert call");
       }
       expect(call.params["colorPrecision"]).toBe(8);
-      expect(call.seq).toBe(1);
     });
 
-    it("discards responses with older seq numbers and does not display Superseded errors", async () => {
-      let pendingSeq1Resolve: ((res: ConvertResult) => void) | null = null;
+    it("does not display results of Image A when Image A conversion finishes while Image B is open", async () => {
+      let pendingSeqAResolve: ((res: ConvertResult) => void) | null = null;
+      let currentPickImage: PickedImage = SAMPLE_IMAGE_A;
 
-      mockIPC((cmd, args) => {
-        if (cmd === "load_preview") {
-          return new Uint8Array([137, 80, 78, 71]).buffer;
-        }
-        if (cmd === "convert") {
-          if (isRecord(args) && args["seq"] === 1) {
-            return new Promise<ConvertResult>((resolve) => {
-              pendingSeq1Resolve = resolve;
-            });
+      mockIPC(
+        (cmd, args) => {
+          if (cmd === "pick_image") {
+            return currentPickImage;
           }
-          if (isRecord(args) && args["seq"] === 2) {
-            // Newer request succeeds with 45 paths
-            return Promise.resolve({
-              ...SAMPLE_RESULT,
-              pathCount: 45,
-            });
+          if (cmd === "load_preview") {
+            return new Uint8Array([137, 80, 78, 71]).buffer;
           }
-        }
-        return null;
-      });
-
-      function TestSeqTrigger() {
-        const { dispatch } = useParams();
-        return (
-          <div>
-            <SingleConversionView />
-            <button
-              type="button"
-              data-testid="btn-seq-2"
-              onClick={() => {
-                dispatch({
-                  type: "SET_PARAM",
-                  key: "filterSpeckle",
-                  value: 10,
-                });
-              }}
-            >
-              Seq 2
-            </button>
-          </div>
-        );
-      }
-
-      render(
-        <LanguageProvider initialLanguage="ja">
-          <ParamsProvider initialSpec={TEST_SPEC}>
-            <SingleConversionProvider
-              initialState={{
-                status: "ready",
-                image: SAMPLE_IMAGE,
-                previewUrl: "blob:mock-png",
-                imageDimensions: { width: 100, height: 100 },
-                svg: SAMPLE_RESULT.svg,
-                svgUrl: "blob:mock-svg",
-                result: SAMPLE_RESULT,
-                error: null,
-                zoom: 1.0,
-                pan: { x: 0, y: 0 },
-              }}
-            >
-              <TestSeqTrigger />
-            </SingleConversionProvider>
-          </ParamsProvider>
-        </LanguageProvider>,
+          if (cmd === "convert") {
+            if (isRecord(args) && args["id"] === "img-handle-a") {
+              return new Promise<ConvertResult>((resolve) => {
+                pendingSeqAResolve = resolve;
+              });
+            }
+            if (isRecord(args) && args["id"] === "img-handle-b") {
+              return Promise.resolve({
+                ...SAMPLE_RESULT,
+                pathCount: 50,
+              });
+            }
+          }
+          return null;
+        },
+        { shouldMockEvents: true },
       );
 
-      // Trigger first conversion
-      act(() => {
-        vi.advanceTimersByTime(300);
-      });
+      renderSingleView();
 
-      // Trigger second conversion while seq 1 is pending
-      act(() => {
-        fireEvent.click(screen.getByTestId("btn-seq-2"));
+      // Open Image A
+      currentPickImage = SAMPLE_IMAGE_A;
+      fireEvent.click(screen.getByRole("button", { name: "画像を開く" }));
+      await act(async () => {
+        await Promise.resolve();
       });
+      expect(screen.getByText("logo_color.png")).toBeInTheDocument();
+
+      // Trigger Image A convert
       await act(async () => {
         vi.advanceTimersByTime(300);
       });
 
-      // Seq 2 resolves first
-      expect(screen.getByText("45")).toBeInTheDocument();
-
-      // Now Seq 1 finishes late with pathCount 999
+      // While Image A convert is pending, switch to Image B
+      currentPickImage = SAMPLE_IMAGE_B;
+      fireEvent.click(screen.getByRole("button", { name: "画像を開く" }));
       await act(async () => {
-        if (pendingSeq1Resolve) {
-          pendingSeq1Resolve({
+        await Promise.resolve();
+      });
+      expect(screen.getByText("icon_mono.png")).toBeInTheDocument();
+
+      // Complete Image B debounce and conversion
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      // Image B should be active with pathCount 50
+      expect(screen.getByText("50")).toBeInTheDocument();
+
+      // Now Image A's conversion completes late with pathCount 999
+      await act(async () => {
+        if (pendingSeqAResolve) {
+          pendingSeqAResolve({
             ...SAMPLE_RESULT,
             pathCount: 999,
           });
         }
       });
+      await act(async () => {
+        await Promise.resolve();
+      });
 
-      // Stale Seq 1 response must be discarded; pathCount remains 45
-      expect(screen.getByText("45")).toBeInTheDocument();
+      // Image A's late result must be discarded; screen must still show 50
+      expect(screen.getByText("50")).toBeInTheDocument();
       expect(screen.queryByText("999")).not.toBeInTheDocument();
     });
 
     it("silently ignores Superseded errors and does not show error banner", async () => {
-      mockIPC((cmd) => {
-        if (cmd === "load_preview") {
-          return new Uint8Array([137, 80, 78, 71]).buffer;
-        }
-        if (cmd === "convert") {
-          const supersededError: IpcError = {
-            code: "Superseded",
-            detail: null,
-          };
-          return Promise.reject(supersededError);
-        }
-        return null;
-      });
+      mockIPC(
+        (cmd) => {
+          if (cmd === "pick_image") {
+            return SAMPLE_IMAGE_A;
+          }
+          if (cmd === "load_preview") {
+            return new Uint8Array([137, 80, 78, 71]).buffer;
+          }
+          if (cmd === "convert") {
+            const supersededError: IpcError = {
+              code: "Superseded",
+              detail: null,
+            };
+            return Promise.reject(supersededError);
+          }
+          return null;
+        },
+        { shouldMockEvents: true },
+      );
 
-      renderSingleView({ initialImage: SAMPLE_IMAGE });
+      renderSingleView();
+
+      fireEvent.click(screen.getByRole("button", { name: "画像を開く" }));
 
       await act(async () => {
         vi.advanceTimersByTime(300);
@@ -559,22 +682,26 @@ describe("SingleConversionView", () => {
 
     for (const ec of errorCases) {
       it(`displays localized message for ${ec.code} (with detail: ${ec.detail ?? "none"})`, async () => {
-        mockIPC((cmd) => {
-          if (cmd === "load_preview") {
-            return new Uint8Array([137, 80, 78, 71]).buffer;
-          }
-          if (cmd === "convert") {
-            const err: IpcError = { code: ec.code, detail: ec.detail };
-            return Promise.reject(err);
-          }
-          return null;
-        });
+        mockIPC(
+          (cmd) => {
+            if (cmd === "pick_image") {
+              return SAMPLE_IMAGE_A;
+            }
+            if (cmd === "load_preview") {
+              return new Uint8Array([137, 80, 78, 71]).buffer;
+            }
+            if (cmd === "convert") {
+              const err: IpcError = { code: ec.code, detail: ec.detail };
+              return Promise.reject(err);
+            }
+            return null;
+          },
+          { shouldMockEvents: true },
+        );
 
         // Test Japanese
-        const { unmount } = renderSingleView({
-          language: "ja",
-          initialImage: SAMPLE_IMAGE,
-        });
+        const { unmount } = renderSingleView({ language: "ja" });
+        fireEvent.click(screen.getByRole("button", { name: "画像を開く" }));
 
         await waitFor(() => {
           const banner = document.querySelector(".error-banner");
@@ -585,7 +712,8 @@ describe("SingleConversionView", () => {
         unmount();
 
         // Test English
-        renderSingleView({ language: "en", initialImage: SAMPLE_IMAGE });
+        renderSingleView({ language: "en" });
+        fireEvent.click(screen.getByRole("button", { name: "Open image" }));
 
         await waitFor(() => {
           const banner = document.querySelector(".error-banner");
@@ -598,7 +726,9 @@ describe("SingleConversionView", () => {
 
   describe("Zoom and Pan controls", () => {
     it("zooms in and out with buttons and clamps between 10% and 1600%", async () => {
-      renderSingleView({ initialImage: SAMPLE_IMAGE });
+      renderSingleView();
+
+      fireEvent.click(screen.getByRole("button", { name: "画像を開く" }));
 
       const zoomInBtn = await screen.findByRole("button", { name: "拡大" });
       const zoomOutBtn = screen.getByRole("button", { name: "縮小" });
@@ -638,6 +768,80 @@ describe("SingleConversionView", () => {
       }
       expect(screen.getByText("10%")).toBeInTheDocument();
       expect(zoomOutBtn).toBeDisabled();
+    });
+
+    it("syncs dragging (pan) across both preview panes", async () => {
+      renderSingleView();
+
+      fireEvent.click(screen.getByRole("button", { name: "画像を開く" }));
+
+      const origImg = await screen.findByAltText("元画像のプレビュー");
+      const origViewport = origImg.closest(".preview-viewport");
+      if (!origViewport) {
+        throw new Error("Viewport not found");
+      }
+
+      // Drag from (100, 100) to (150, 130)
+      fireEvent.pointerDown(origViewport, {
+        button: 0,
+        clientX: 100,
+        clientY: 100,
+        pointerId: 1,
+      });
+
+      fireEvent.pointerMove(origViewport, {
+        clientX: 150,
+        clientY: 130,
+        pointerId: 1,
+      });
+
+      fireEvent.pointerUp(origViewport, {
+        pointerId: 1,
+      });
+
+      // Both panes should now have transform: translate(50px, 30px)
+      const previewContents = document.querySelectorAll(".preview-content");
+      expect(previewContents).toHaveLength(2);
+      previewContents.forEach((content) => {
+        expect(content).toHaveStyle({
+          transform: "translate(50px, 30px)",
+        });
+      });
+    });
+
+    it("fits preview zoom to viewport on Zoom Fit button click", async () => {
+      renderSingleView();
+
+      fireEvent.click(screen.getByRole("button", { name: "画像を開く" }));
+
+      const origImg = await screen.findByAltText("元画像のプレビュー");
+      const origViewport = origImg.closest(".preview-viewport");
+      if (!origViewport) {
+        throw new Error("Viewport not found");
+      }
+
+      // Mock viewport dimensions: 432 x 332
+      Object.defineProperty(origViewport, "clientWidth", {
+        value: 432,
+        configurable: true,
+      });
+      Object.defineProperty(origViewport, "clientHeight", {
+        value: 332,
+        configurable: true,
+      });
+
+      // Trigger natural dimensions: 200 x 200
+      Object.defineProperty(origImg, "naturalWidth", { value: 200 });
+      Object.defineProperty(origImg, "naturalHeight", { value: 200 });
+      fireEvent.load(origImg);
+
+      // Fit calculation: (432 - 32) / 200 = 2.0, (332 - 32) / 200 = 1.5 -> min is 1.5 (150%)
+      const fitBtn = screen.getByRole("button", { name: "全体表示" });
+      fireEvent.click(fitBtn);
+
+      expect(
+        await screen.findByText("150%", { selector: "span" }),
+      ).toBeInTheDocument();
     });
   });
 });

@@ -1,10 +1,14 @@
 import type { ConvertResult, IpcError, PickedImage } from "../ipc";
+import { DEFAULT_ZOOM, MAX_ZOOM, MIN_ZOOM } from "../features/single/constants";
 
-export const CONVERT_DEBOUNCE_MS = 300;
-export const MIN_ZOOM = 0.1;
-export const MAX_ZOOM = 16.0;
-export const DEFAULT_ZOOM = 1.0;
-export const PIXELATED_ZOOM_THRESHOLD = 2.0;
+export {
+  CONVERT_DEBOUNCE_MS,
+  DEFAULT_ZOOM,
+  MAX_ZOOM,
+  MIN_ZOOM,
+  PIXELATED_ZOOM_THRESHOLD,
+  ZOOM_STEP_FACTOR,
+} from "../features/single/constants";
 
 export type SingleConversionStatus =
   "idle" | "loading_preview" | "converting" | "ready" | "error";
@@ -50,6 +54,7 @@ export type SingleConversionAction =
   | { type: "CONVERT_ERROR"; error: IpcError }
   | { type: "SET_ERROR"; error: IpcError | null }
   | { type: "SET_ZOOM"; zoom: number }
+  | { type: "ZOOM_BY"; factor: number }
   | { type: "SET_PAN"; pan: PanOffset }
   | { type: "SET_ZOOM_AND_PAN"; zoom: number; pan: PanOffset }
   | { type: "RESET" };
@@ -138,6 +143,11 @@ export function singleConversionReducer(
       return {
         ...state,
         zoom: clampZoom(action.zoom),
+      };
+    case "ZOOM_BY":
+      return {
+        ...state,
+        zoom: clampZoom(state.zoom * action.factor),
       };
     case "SET_PAN":
       return {
