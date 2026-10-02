@@ -470,6 +470,13 @@ where
     Ok(())
 }
 
+/// Extracts a user-facing directory display label from `path` per design §5.2.
+pub fn extract_dir_label(path: &Path) -> String {
+    path.file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| path.to_string_lossy().to_string())
+}
+
 /// Helper to handle selection of input directory in tests or IPC.
 pub fn select_batch_input_internal(
     path: PathBuf,
@@ -478,10 +485,7 @@ pub fn select_batch_input_internal(
     let (targets, ignored_count) = enumerate_targets(&path)
         .map_err(|e| IpcError::new(ErrorCode::ReadFailed, e.to_string()))?;
 
-    let dir_label = path
-        .file_name()
-        .map(|n| n.to_string_lossy().to_string())
-        .unwrap_or_else(|| path.to_string_lossy().to_string());
+    let dir_label = extract_dir_label(&path);
 
     *batch_state
         .input_dir
@@ -500,10 +504,7 @@ pub fn select_batch_output_internal(
     path: PathBuf,
     batch_state: &BatchState,
 ) -> PickBatchOutputResult {
-    let dir_label = path
-        .file_name()
-        .map(|n| n.to_string_lossy().to_string())
-        .unwrap_or_else(|| path.to_string_lossy().to_string());
+    let dir_label = extract_dir_label(&path);
 
     *batch_state
         .output_dir
