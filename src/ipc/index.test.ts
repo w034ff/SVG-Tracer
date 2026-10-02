@@ -2,12 +2,15 @@ import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   convert,
+  getAbout,
   getParamSpec,
+  getSettings,
   isErrorCode,
   isIpcError,
   loadPreview,
   normalizeIpcError,
   pickImage,
+  saveSettings,
   saveSvg,
 } from "./index";
 import type {
@@ -129,6 +132,53 @@ describe("ipc wrapper", () => {
       const spec = await getParamSpec();
       expect(spec.defaultPreset).toBe("colorLogo");
       expect(spec.presets).toHaveLength(1);
+    });
+
+    it("getSettings resolves with Settings", async () => {
+      const mockSettings = {
+        language: "ja" as const,
+        preset: "colorLogo" as const,
+        params: SAMPLE_PARAMS,
+        batchInput: null,
+        batchOutput: null,
+      };
+      mockIPC((cmd) => {
+        if (cmd === "get_settings") {
+          return mockSettings;
+        }
+      });
+
+      const settings = await getSettings();
+      expect(settings).toEqual(mockSettings);
+    });
+
+    it("saveSettings invokes save_settings with arguments", async () => {
+      let passedArgs: unknown = null;
+      mockIPC((cmd, args) => {
+        if (cmd === "save_settings") {
+          passedArgs = args;
+          return null;
+        }
+      });
+
+      await saveSettings("en", null, SAMPLE_PARAMS);
+      expect(passedArgs).toEqual({
+        language: "en",
+        preset: null,
+        params: SAMPLE_PARAMS,
+      });
+    });
+
+    it("getAbout resolves with AboutInfo", async () => {
+      const mockAbout = { version: "1.2.3" };
+      mockIPC((cmd) => {
+        if (cmd === "get_about") {
+          return mockAbout;
+        }
+      });
+
+      const about = await getAbout();
+      expect(about).toEqual(mockAbout);
     });
 
     it("pickImage resolves with PickedImage", async () => {

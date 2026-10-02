@@ -96,4 +96,12 @@ export const en: TranslationKeys = {
   batchCancelling: "Cancelling...",
   batchDisabledDuringConversion: "Settings cannot be changed during conversion",
   batchProgressBarAria: "Progress",
+
+  aboutTitle: "About SVG Tracer",
+  aboutVersion: "Version {version}",
+  aboutAppLicense: "Application License (MIT)",
+  aboutThirdPartyLicenses: "Third-Party Licenses",
+  aboutLoadingLicenses: "Loading licenses...",
+  aboutViewLicenseText: "View license text",
+  aboutClose: "Close",
 };

@@ -38,24 +38,45 @@ export type ParamsAction =
       isOpen: boolean;
     };
 
-export function createInitialParamsState(spec?: ParamSpec | null): ParamsState {
+export function createInitialParamsState(
+  spec?: ParamSpec | null,
+  initialPreset?: PresetSelection | null,
+  initialParams?: TraceParams | null,
+  initialError?: IpcError | null,
+): ParamsState {
+  if (initialError) {
+    return {
+      spec: null,
+      preset: initialPreset ?? "colorLogo",
+      params: initialParams ? { ...initialParams } : null,
+      isAdvancedOpen: false,
+      error: initialError,
+    };
+  }
+
   if (!spec) {
     return {
       spec: null,
-      preset: "colorLogo",
-      params: null,
+      preset: initialPreset ?? "colorLogo",
+      params: initialParams ? { ...initialParams } : null,
       isAdvancedOpen: false,
       error: null,
     };
   }
 
-  const defaultPreset = spec.defaultPreset;
-  const matched = spec.presets.find((p) => p.id === defaultPreset);
+  const preset: PresetSelection = initialPreset ?? spec.defaultPreset;
+  let params: TraceParams | null = null;
+  if (initialParams) {
+    params = { ...initialParams };
+  } else if (preset !== "custom") {
+    const matched = spec.presets.find((p) => p.id === preset);
+    params = matched ? { ...matched.params } : null;
+  }
 
   return {
     spec,
-    preset: defaultPreset,
-    params: matched ? { ...matched.params } : null,
+    preset,
+    params,
     isAdvancedOpen: false,
     error: null,
   };

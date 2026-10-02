@@ -6,7 +6,13 @@ import {
 } from "react";
 import type { Language } from "../i18n";
 import { translations } from "../i18n";
-import type { ParamSpec } from "../ipc";
+import type {
+  IpcError,
+  ParamSpec,
+  PickBatchInputResult,
+  PickBatchOutputResult,
+  TraceParams,
+} from "../ipc";
 import { getParamSpec, normalizeIpcError } from "../ipc";
 import {
   batchConversionReducer,
@@ -20,7 +26,11 @@ import {
   SingleConversionContext,
 } from "./contexts";
 import { createInitialLanguageState, languageReducer } from "./language";
-import { createInitialParamsState, paramsReducer } from "./params";
+import {
+  createInitialParamsState,
+  paramsReducer,
+  type PresetSelection,
+} from "./params";
 import {
   createInitialSingleConversionState,
   singleConversionReducer,
@@ -62,25 +72,39 @@ export function LanguageProvider({
 export function ParamsProvider({
   children,
   initialSpec,
+  initialPreset,
+  initialParams,
+  initialError,
 }: {
   children: ReactNode;
-  initialSpec?: ParamSpec;
+  initialSpec?: ParamSpec | null;
+  initialPreset?: PresetSelection | null;
+  initialParams?: TraceParams | null;
+  initialError?: IpcError | null;
 }): ReactElement {
-  const [state, dispatch] = useReducer(
-    paramsReducer,
-    initialSpec ?? null,
-    createInitialParamsState,
+  const [state, dispatch] = useReducer(paramsReducer, undefined, () =>
+    createInitialParamsState(
+      initialSpec,
+      initialPreset,
+      initialParams,
+      initialError,
+    ),
   );
 
   useEffect(() => {
-    if (initialSpec) {
+    if (initialSpec || initialError) {
       return;
     }
     let isMounted = true;
     getParamSpec()
       .then((spec) => {
         if (isMounted) {
-          dispatch({ type: "INIT_SPEC", spec });
+          dispatch({
+            type: "INIT_SPEC",
+            spec,
+            initialPreset: initialPreset ?? undefined,
+            initialParams: initialParams ?? undefined,
+          });
         }
       })
       .catch((error: unknown) => {
@@ -93,7 +117,7 @@ export function ParamsProvider({
     return () => {
       isMounted = false;
     };
-  }, [initialSpec]);
+  }, [initialSpec, initialError, initialPreset, initialParams]);
 
   return (
     <ParamsContext.Provider value={{ state, dispatch }}>
@@ -124,13 +148,18 @@ export function SingleConversionProvider({
 export function BatchConversionProvider({
   children,
   initialState,
+  initialInput,
+  initialOutput,
 }: {
   children: ReactNode;
   initialState?: BatchConversionState;
+  initialInput?: PickBatchInputResult | null;
+  initialOutput?: PickBatchOutputResult | null;
 }): ReactElement {
   const [state, dispatch] = useReducer(
     batchConversionReducer,
-    initialState ?? createInitialBatchConversionState(),
+    initialState ??
+      createInitialBatchConversionState(initialInput, initialOutput),
   );
 
   return (
@@ -144,16 +173,36 @@ export function AppProviders({
   children,
   initialSpec,
   initialLanguage,
+  initialPreset,
+  initialParams,
+  initialBatchInput,
+  initialBatchOutput,
+  initialSpecError,
 }: {
   children: ReactNode;
-  initialSpec?: ParamSpec;
+  initialSpec?: ParamSpec | null;
   initialLanguage?: Language;
+  initialPreset?: PresetSelection | null;
+  initialParams?: TraceParams | null;
+  initialBatchInput?: PickBatchInputResult | null;
+  initialBatchOutput?: PickBatchOutputResult | null;
+  initialSpecError?: IpcError | null;
 }): ReactElement {
   return (
     <LanguageProvider initialLanguage={initialLanguage}>
-      <ParamsProvider initialSpec={initialSpec}>
+      <ParamsProvider
+        initialSpec={initialSpec}
+        initialPreset={initialPreset}
+        initialParams={initialParams}
+        initialError={initialSpecError}
+      >
         <SingleConversionProvider>
-          <BatchConversionProvider>{children}</BatchConversionProvider>
+          <BatchConversionProvider
+            initialInput={initialBatchInput}
+            initialOutput={initialBatchOutput}
+          >
+            {children}
+          </BatchConversionProvider>
         </SingleConversionProvider>
       </ParamsProvider>
     </LanguageProvider>

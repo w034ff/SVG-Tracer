@@ -1,8 +1,9 @@
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
-import type { ParamSpec, TraceParams } from "./ipc";
+import { SETTINGS_SAVE_DEBOUNCE_MS } from "./features/settings/constants";
+import type { ParamSpec, Settings, TraceParams } from "./ipc";
 
 const COLOR_LOGO_PARAMS: TraceParams = {
   colorMode: "color",
@@ -11,6 +12,19 @@ const COLOR_LOGO_PARAMS: TraceParams = {
   cornerThreshold: 60,
   curveMode: "spline",
   layerDifference: 16,
+  hierarchical: "stacked",
+  lengthThreshold: 4.0,
+  spliceThreshold: 45,
+  pathPrecision: 2,
+};
+
+const COLOR_ICON_PARAMS: TraceParams = {
+  colorMode: "color",
+  colorPrecision: 4,
+  filterSpeckle: 8,
+  cornerThreshold: 60,
+  curveMode: "spline",
+  layerDifference: 32,
   hierarchical: "stacked",
   lengthThreshold: 4.0,
   spliceThreshold: 45,
@@ -27,7 +41,10 @@ const TEST_SPEC: ParamSpec = {
     spliceThreshold: { min: 0, max: 180 },
     pathPrecision: { min: 0, max: 8 },
   },
-  presets: [{ id: "colorLogo", params: COLOR_LOGO_PARAMS }],
+  presets: [
+    { id: "colorLogo", params: COLOR_LOGO_PARAMS },
+    { id: "colorIcon", params: COLOR_ICON_PARAMS },
+  ],
   defaultPreset: "colorLogo",
 };
 
@@ -263,5 +280,329 @@ describe("App", () => {
     } finally {
       window.URL.revokeObjectURL = origRevoke;
     }
+  });
+
+  describe("T11: Settings restoration, Auto-save, and About dialog", () => {
+    it("restores saved language, preset, and params on startup via production get_settings path", async () => {
+      const savedSettings: Settings = {
+        language: "en",
+        preset: "colorIcon",
+        params: COLOR_ICON_PARAMS,
+        batchInput: null,
+        batchOutput: null,
+      };
+
+      mockIPC((cmd) => {
+        if (cmd === "get_settings") {
+          return savedSettings;
+        }
+        if (cmd === "get_param_spec") {
+          return TEST_SPEC;
+        }
+        return null;
+      });
+
+      render(<App />);
+
+      expect(
+        await screen.findByRole("tab", { name: "Single" }),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: "Batch" })).toBeInTheDocument();
+
+      const langSelect = screen.getByLabelText("Language");
+      expect(langSelect).toHaveValue("en");
+
+      const presetSelect = screen.getByLabelText("Preset");
+      expect(presetSelect).toHaveValue("colorIcon");
+
+      const colorPrecisionSlider = screen.getByLabelText(/Color precision/);
+      expect(colorPrecisionSlider).toHaveValue("4");
+
+      const filterSpeckleSlider = screen.getByLabelText(/Filter speckle/);
+      expect(filterSpeckleSlider).toHaveValue("8");
+    });
+
+    it("restores custom preset (preset: null) and reflects params", async () => {
+      const customParams: TraceParams = {
+        ...COLOR_LOGO_PARAMS,
+        colorPrecision: 8,
+        filterSpeckle: 12,
+      };
+      const savedSettings: Settings = {
+        language: "ja",
+        preset: null,
+        params: customParams,
+        batchInput: null,
+        batchOutput: null,
+      };
+
+      mockIPC((cmd) => {
+        if (cmd === "get_settings") {
+          return savedSettings;
+        }
+        if (cmd === "get_param_spec") {
+          return TEST_SPEC;
+        }
+        return null;
+      });
+
+      render(<App />);
+
+      expect(
+        await screen.findByRole("tab", { name: "単体変換" }),
+      ).toBeInTheDocument();
+
+      const presetSelect = screen.getByLabelText("プリセット");
+      expect(presetSelect).toHaveValue("custom");
+
+      const colorPrecisionSlider = screen.getByLabelText(/色の精度/);
+      expect(colorPrecisionSlider).toHaveValue("8");
+
+      const filterSpeckleSlider = screen.getByLabelText(/ノイズ除去/);
+      expect(filterSpeckleSlider).toHaveValue("12");
+    });
+
+    it("restores batchInput and batchOutput in batch tab with items in wait status", async () => {
+      const savedSettings: Settings = {
+        language: "ja",
+        preset: "colorLogo",
+        params: COLOR_LOGO_PARAMS,
+        batchInput: {
+          dirLabel: "RestoredInputFolder",
+          targets: ["target_a.png", "target_b.png"],
+          ignoredCount: 3,
+        },
+        batchOutput: {
+          dirLabel: "RestoredOutputFolder",
+        },
+      };
+
+      mockIPC((cmd) => {
+        if (cmd === "get_settings") {
+          return savedSettings;
+        }
+        if (cmd === "get_param_spec") {
+          return TEST_SPEC;
+        }
+        return null;
+      });
+
+      render(<App />);
+
+      expect(
+        await screen.findByRole("tab", { name: "一括変換" }),
+      ).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("tab", { name: "一括変換" }));
+
+      expect(screen.getByText("RestoredInputFolder")).toBeInTheDocument();
+      expect(screen.getByText("RestoredOutputFolder")).toBeInTheDocument();
+      expect(screen.getByText(/対象 2 件 · 対象外 3 件/)).toBeInTheDocument();
+
+      expect(screen.getByText("target_a.png")).toBeInTheDocument();
+      expect(screen.getByText("target_b.png")).toBeInTheDocument();
+      const waitBadges = screen.getAllByText("待機");
+      expect(waitBadges).toHaveLength(2);
+
+      const startButton = screen.getByRole("button", { name: "変換を開始" });
+      expect(startButton).not.toBeDisabled();
+    });
+
+    it("does not invoke save_settings on startup restoration", () => {
+      let saveCount = 0;
+      mockIPC((cmd) => {
+        if (cmd === "save_settings") {
+          saveCount += 1;
+          return null;
+        }
+        return null;
+      });
+
+      vi.useFakeTimers();
+      try {
+        render(<App initialSpec={TEST_SPEC} initialLanguage="ja" />);
+
+        act(() => {
+          vi.advanceTimersByTime(SETTINGS_SAVE_DEBOUNCE_MS * 3);
+        });
+
+        expect(saveCount).toBe(0);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("debounces rapid parameter modifications into a single save_settings call", () => {
+      const savedPayloads: unknown[] = [];
+      mockIPC((cmd, args) => {
+        if (cmd === "save_settings") {
+          savedPayloads.push(args);
+          return null;
+        }
+        return null;
+      });
+
+      vi.useFakeTimers();
+      try {
+        render(<App initialSpec={TEST_SPEC} initialLanguage="ja" />);
+
+        const slider1 = screen.getByLabelText(/色の精度/);
+        fireEvent.change(slider1, { target: { value: "7" } });
+
+        act(() => {
+          vi.advanceTimersByTime(400);
+        });
+        expect(savedPayloads).toHaveLength(0);
+
+        const slider2 = screen.getByLabelText(/ノイズ除去/);
+        fireEvent.change(slider2, { target: { value: "10" } });
+
+        act(() => {
+          vi.advanceTimersByTime(400);
+        });
+        expect(savedPayloads).toHaveLength(0);
+
+        fireEvent.change(slider1, { target: { value: "8" } });
+
+        act(() => {
+          vi.advanceTimersByTime(SETTINGS_SAVE_DEBOUNCE_MS);
+        });
+
+        expect(savedPayloads).toHaveLength(1);
+        expect(savedPayloads[0]).toEqual({
+          language: "ja",
+          preset: null,
+          params: {
+            ...COLOR_LOGO_PARAMS,
+            colorPrecision: 8,
+            filterSpeckle: 10,
+          },
+        });
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("starts with default values when get_settings fails", async () => {
+      mockIPC((cmd) => {
+        if (cmd === "get_settings") {
+          return Promise.reject(new Error("Config read error"));
+        }
+        if (cmd === "get_param_spec") {
+          return TEST_SPEC;
+        }
+        return null;
+      });
+
+      render(<App />);
+
+      expect(
+        await screen.findByRole("tab", { name: "Single" }),
+      ).toBeInTheDocument();
+      const presetSelect = screen.getByLabelText("Preset");
+      expect(presetSelect).toHaveValue("colorLogo");
+    });
+
+    it("switches language dynamically and invokes save_settings after 1000ms", () => {
+      const savedPayloads: unknown[] = [];
+      mockIPC((cmd, args) => {
+        if (cmd === "save_settings") {
+          savedPayloads.push(args);
+          return null;
+        }
+        return null;
+      });
+
+      vi.useFakeTimers();
+      try {
+        render(<App initialSpec={TEST_SPEC} initialLanguage="ja" />);
+
+        const langSelect = screen.getByLabelText("言語");
+        fireEvent.change(langSelect, { target: { value: "en" } });
+
+        expect(screen.getByRole("tab", { name: "Single" })).toBeInTheDocument();
+        expect(
+          screen.getByRole("button", { name: "About" }),
+        ).toBeInTheDocument();
+
+        act(() => {
+          vi.advanceTimersByTime(SETTINGS_SAVE_DEBOUNCE_MS);
+        });
+
+        expect(savedPayloads).toHaveLength(1);
+        expect(savedPayloads[0]).toEqual({
+          language: "en",
+          preset: "colorLogo",
+          params: COLOR_LOGO_PARAMS,
+        });
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("opens About dialog, displays version, MIT license, and third party licenses (vtracer and tauri)", async () => {
+      mockIPC((cmd) => {
+        if (cmd === "get_about") {
+          return { version: "0.1.0" };
+        }
+        return null;
+      });
+
+      render(<App initialSpec={TEST_SPEC} initialLanguage="ja" />);
+
+      const aboutBtn = screen.getByRole("button", {
+        name: "このアプリについて",
+      });
+      fireEvent.click(aboutBtn);
+
+      const dialog = await screen.findByRole("dialog");
+      expect(dialog).toBeInTheDocument();
+      expect(dialog).toHaveAttribute("aria-modal", "true");
+      expect(dialog).toHaveAttribute("aria-labelledby", "about-dialog-title");
+
+      expect(await screen.findByText("バージョン 0.1.0")).toBeInTheDocument();
+
+      expect(
+        screen.getByText(/Permission is hereby granted/),
+      ).toBeInTheDocument();
+      expect(screen.getByText(/Copyright \(c\) 2026/)).toBeInTheDocument();
+
+      await screen.findByText(/vtracer/);
+      expect(screen.getAllByText(/vtracer/).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/tauri/).length).toBeGreaterThan(0);
+    });
+
+    it("opens dialog via Enter/Space and closes with Escape returning focus to button", async () => {
+      render(<App initialSpec={TEST_SPEC} initialLanguage="ja" />);
+
+      const aboutBtn = screen.getByRole("button", {
+        name: "このアプリについて",
+      });
+      aboutBtn.focus();
+      expect(document.activeElement).toBe(aboutBtn);
+
+      fireEvent.keyDown(aboutBtn, { key: "Enter" });
+
+      const dialog = await screen.findByRole("dialog");
+      expect(dialog).toBeInTheDocument();
+
+      expect(dialog.contains(document.activeElement)).toBe(true);
+
+      fireEvent.keyDown(window, { key: "Escape" });
+
+      expect(screen.queryByRole("dialog")).toBeNull();
+
+      expect(document.activeElement).toBe(aboutBtn);
+
+      // Open with Space
+      fireEvent.keyDown(aboutBtn, { key: " " });
+
+      const dialog2 = await screen.findByRole("dialog");
+      expect(dialog2).toBeInTheDocument();
+
+      fireEvent.keyDown(window, { key: "Escape" });
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(document.activeElement).toBe(aboutBtn);
+    });
   });
 });

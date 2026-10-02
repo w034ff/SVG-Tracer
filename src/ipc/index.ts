@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import type { AboutInfo } from "./generated/AboutInfo";
 import type { BatchFinishedPayload } from "./generated/BatchFinishedPayload";
 import type { BatchItemPayload } from "./generated/BatchItemPayload";
 import type { BatchProgressPayload } from "./generated/BatchProgressPayload";
@@ -7,13 +8,17 @@ import type { ConvertResult } from "./generated/ConvertResult";
 import type { ErrorCode } from "./generated/ErrorCode";
 import type { ImageDroppedPayload } from "./generated/ImageDroppedPayload";
 import type { IpcError } from "./generated/IpcError";
+import type { Language } from "./generated/Language";
 import type { ParamSpec } from "./generated/ParamSpec";
 import type { PickBatchInputResult } from "./generated/PickBatchInputResult";
 import type { PickBatchOutputResult } from "./generated/PickBatchOutputResult";
 import type { PickedImage } from "./generated/PickedImage";
+import type { Preset } from "./generated/Preset";
 import type { SaveSvgResult } from "./generated/SaveSvgResult";
+import type { Settings } from "./generated/Settings";
 import type { TraceParams } from "./generated/TraceParams";
 
+export type { AboutInfo } from "./generated/AboutInfo";
 export type { BatchFinishedPayload } from "./generated/BatchFinishedPayload";
 export type { BatchItemPayload } from "./generated/BatchItemPayload";
 export type { BatchItemStatus } from "./generated/BatchItemStatus";
@@ -27,6 +32,7 @@ export type { Hierarchical } from "./generated/Hierarchical";
 export type { ImageDroppedPayload } from "./generated/ImageDroppedPayload";
 export type { IntRange } from "./generated/IntRange";
 export type { IpcError } from "./generated/IpcError";
+export type { Language } from "./generated/Language";
 export type { ParamRanges } from "./generated/ParamRanges";
 export type { ParamSpec } from "./generated/ParamSpec";
 export type { PickBatchInputResult } from "./generated/PickBatchInputResult";
@@ -35,6 +41,7 @@ export type { PickedImage } from "./generated/PickedImage";
 export type { Preset } from "./generated/Preset";
 export type { PresetSpec } from "./generated/PresetSpec";
 export type { SaveSvgResult } from "./generated/SaveSvgResult";
+export type { Settings } from "./generated/Settings";
 export type { TraceParams } from "./generated/TraceParams";
 export type { UnlistenFn };
 
@@ -122,6 +129,32 @@ async function invokeWrapped<T>(
  */
 export async function getParamSpec(): Promise<ParamSpec> {
   return invokeWrapped<ParamSpec>("get_param_spec");
+}
+
+/**
+ * Fetches saved application settings per design §5.6, §6.1.
+ */
+export async function getSettings(): Promise<Settings> {
+  return invokeWrapped<Settings>("get_settings");
+}
+
+/**
+ * Saves application settings (language, preset, vectorization params) per design §5.6, §6.1.
+ * Batch folder configuration is excluded (handled internally by Rust when selected).
+ */
+export async function saveSettings(
+  language: Language | null,
+  preset: Preset | null,
+  params: TraceParams,
+): Promise<void> {
+  return invokeWrapped<void>("save_settings", { language, preset, params });
+}
+
+/**
+ * Fetches application version information per design §6.1.
+ */
+export async function getAbout(): Promise<AboutInfo> {
+  return invokeWrapped<AboutInfo>("get_about");
 }
 
 /**

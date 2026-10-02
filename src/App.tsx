@@ -1,34 +1,73 @@
 import {
   useEffect,
+  useRef,
   useState,
   type ChangeEvent,
   type ReactElement,
 } from "react";
+import { AboutDialog } from "./features/about/AboutDialog";
 import { BatchConversionView } from "./features/batch/BatchConversionView";
 import { ParamsPanel } from "./features/settings/ParamsPanel";
+import { useSettingsAutoSave } from "./features/settings/useSettingsAutoSave";
 import { SingleConversionView } from "./features/single/SingleConversionView";
 import type { Language } from "./i18n";
+import { resolveInitialLanguage } from "./i18n";
 import {
+  getParamSpec,
+  getSettings,
+  normalizeIpcError,
   onBatchFinished,
   onBatchItem,
   onBatchProgress,
   onImageDropped,
+  type IpcError,
   type ParamSpec,
+  type Settings,
   type UnlistenFn,
 } from "./ipc";
 import {
   AppProviders,
   useBatchConversion,
   useLanguage,
+  useParams,
   useSingleConversion,
 } from "./state";
+import type { PresetSelection } from "./state/params";
 import "./styles/app.css";
 
 function AppContent(): ReactElement {
   const { t, state: langState, dispatch: langDispatch } = useLanguage();
+  const { state: paramsState } = useParams();
   const { dispatch: singleDispatch } = useSingleConversion();
   const { state: batchState, dispatch: batchDispatch } = useBatchConversion();
   const [activeTab, setActiveTab] = useState<"single" | "batch">("single");
+
+  // About dialog state and focus restoration ref
+  const [isAboutOpen, setIsAboutOpen] = useState(false);
+  const aboutButtonRef = useRef<HTMLButtonElement>(null);
+  const prevAboutOpenRef = useRef(isAboutOpen);
+
+  useEffect(() => {
+    if (prevAboutOpenRef.current && !isAboutOpen) {
+      aboutButtonRef.current?.focus();
+    }
+    prevAboutOpenRef.current = isAboutOpen;
+  }, [isAboutOpen]);
+
+  function handleOpenAbout(): void {
+    setIsAboutOpen(true);
+  }
+
+  function handleCloseAbout(): void {
+    setIsAboutOpen(false);
+  }
+
+  // Automatic debounced settings persistence per design §5.6
+  useSettingsAutoSave({
+    language: langState.language,
+    preset: paramsState.preset,
+    params: paramsState.params,
+  });
 
   const isBatchActive =
     batchState.status === "running" || batchState.status === "cancelling";
@@ -169,7 +208,19 @@ function AppContent(): ReactElement {
           <option value="en">{t.languageEn}</option>
         </select>
 
-        <button type="button" className="btn icon-btn" aria-label={t.about}>
+        <button
+          ref={aboutButtonRef}
+          type="button"
+          className="btn icon-btn"
+          aria-label={t.about}
+          onClick={handleOpenAbout}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              handleOpenAbout();
+            }
+          }}
+        >
           <svg
             width="16"
             height="16"
@@ -211,21 +262,128 @@ function AppContent(): ReactElement {
           </div>
         </main>
       </div>
+
+      <AboutDialog isOpen={isAboutOpen} onClose={handleCloseAbout} />
     </div>
   );
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isValidSettings(value: unknown): value is Settings {
+  if (!isRecord(value)) {
+    return false;
+  }
+  return (
+    "params" in value &&
+    isRecord(value.params) &&
+    "preset" in value &&
+    "language" in value
+  );
+}
+
 export type AppProps = {
-  initialSpec?: ParamSpec;
-  initialLanguage?: Language;
+  readonly initialSpec?: ParamSpec;
+  readonly initialLanguage?: Language;
+  readonly initialSettings?: Settings | null;
+};
+
+type InitData = {
+  readonly isReady: boolean;
+  readonly spec: ParamSpec | null;
+  readonly specError: IpcError | null;
+  readonly settings: Settings | null;
 };
 
 export function App({
   initialSpec,
   initialLanguage,
-}: AppProps = {}): ReactElement {
+  initialSettings,
+}: AppProps = {}): ReactElement | null {
+  const isDirectMode = initialSpec !== undefined;
+
+  const [initData, setInitData] = useState<InitData>(() => ({
+    isReady: isDirectMode,
+    spec: initialSpec ?? null,
+    specError: null,
+    settings: initialSettings ?? null,
+  }));
+
+  useEffect(() => {
+    if (isDirectMode) {
+      return;
+    }
+
+    let isMounted = true;
+
+    const settingsPromise = getSettings()
+      .then((res) => (isValidSettings(res) ? res : null))
+      .catch(() => null);
+
+    const specPromise = getParamSpec()
+      .then((spec) => ({ spec, error: null }))
+      .catch((err: unknown) => ({ spec: null, error: normalizeIpcError(err) }));
+
+    Promise.all([settingsPromise, specPromise]).then(
+      ([settings, specResult]) => {
+        if (!isMounted) {
+          return;
+        }
+        setInitData({
+          isReady: true,
+          spec: specResult.spec,
+          specError: specResult.error,
+          settings,
+        });
+      },
+    );
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isDirectMode]);
+
+  // Do not render app body until both settings and param spec are retrieved per design §8.4
+  if (!initData.isReady) {
+    return <div className="app-shell" />;
+  }
+
+  // Resolve language: prop > saved setting > navigator.languages
+  let resolvedLanguage: Language;
+  if (initialLanguage) {
+    resolvedLanguage = initialLanguage;
+  } else if (
+    initData.settings?.language === "ja" ||
+    initData.settings?.language === "en"
+  ) {
+    resolvedLanguage = initData.settings.language;
+  } else {
+    resolvedLanguage = resolveInitialLanguage(null);
+  }
+
+  // Resolve preset: preset === null in settings represents "custom"
+  let resolvedPreset: PresetSelection | undefined;
+  if (initData.settings) {
+    resolvedPreset =
+      initData.settings.preset === null ? "custom" : initData.settings.preset;
+  }
+
+  const resolvedParams = initData.settings?.params ?? undefined;
+  const resolvedBatchInput = initData.settings?.batchInput ?? null;
+  const resolvedBatchOutput = initData.settings?.batchOutput ?? null;
+
   return (
-    <AppProviders initialSpec={initialSpec} initialLanguage={initialLanguage}>
+    <AppProviders
+      initialSpec={initData.spec}
+      initialSpecError={initData.specError}
+      initialLanguage={resolvedLanguage}
+      initialPreset={resolvedPreset}
+      initialParams={resolvedParams}
+      initialBatchInput={resolvedBatchInput}
+      initialBatchOutput={resolvedBatchOutput}
+    >
       <AppContent />
     </AppProviders>
   );

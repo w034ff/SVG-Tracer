@@ -85,6 +85,18 @@ describe("reducers", () => {
       expect(state.error).toBeNull();
     });
 
+    it("initializes state from spec with custom preset and params", () => {
+      const customParams: TraceParams = {
+        ...COLOR_LOGO_PARAMS,
+        colorPrecision: 8,
+      };
+      const state = createInitialParamsState(MOCK_SPEC, "custom", customParams);
+
+      expect(state.spec).toEqual(MOCK_SPEC);
+      expect(state.preset).toBe("custom");
+      expect(state.params).toEqual(customParams);
+    });
+
     it("records error on INIT_ERROR", () => {
       const initial = createInitialParamsState(null);
       const error: IpcError = { code: "ReadFailed", detail: "File read error" };
@@ -593,6 +605,34 @@ describe("reducers", () => {
         code: "ReadFailed",
         detail: "permission denied",
       });
+    });
+
+    it("initializes batch state with restored inputDir and outputDir", () => {
+      const inputDir = {
+        dirLabel: "RestoredInput",
+        targets: ["image1.png", "image2.jpg"],
+        ignoredCount: 5,
+      };
+      const outputDir = { dirLabel: "RestoredOutput" };
+
+      const state = createInitialBatchConversionState(inputDir, outputDir);
+      expect(state.status).toBe("idle");
+      expect(state.inputDir).toEqual(inputDir);
+      expect(state.outputDir).toEqual(outputDir);
+      expect(state.items).toEqual([
+        {
+          name: "image1.png",
+          outputName: null,
+          status: "wait",
+          error: null,
+        },
+        {
+          name: "image2.jpg",
+          outputName: null,
+          status: "wait",
+          error: null,
+        },
+      ]);
     });
   });
 });
