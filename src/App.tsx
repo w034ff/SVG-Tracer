@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -58,13 +59,13 @@ function AppContent(): ReactElement {
     setIsAboutOpen(true);
   }
 
-  function handleCloseAbout(): void {
+  const handleCloseAbout = useCallback((): void => {
     setIsAboutOpen(false);
-  }
+  }, []);
 
   // Automatic debounced settings persistence per design §5.6
   useSettingsAutoSave({
-    language: langState.language,
+    language: langState.savedLanguage,
     preset: paramsState.preset,
     params: paramsState.params,
   });
@@ -151,143 +152,121 @@ function AppContent(): ReactElement {
   }
 
   return (
-    <div className="app-shell">
-      {/* Top bar header */}
-      <header className="app-header">
-        <div className="app-logo">
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
+    <>
+      <div className="app-shell" inert={isAboutOpen ? true : undefined}>
+        {/* Top bar header */}
+        <header className="app-header">
+          <div className="app-logo">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M4 20c4-12 12-12 16-16" />
+              <circle cx="4" cy="20" r="2" />
+              <circle cx="20" cy="4" r="2" />
+            </svg>
+            <span>{t.appTitle}</span>
+          </div>
+
+          <nav role="tablist" aria-label={t.mode} className="app-nav">
+            <button
+              id="tab-single"
+              type="button"
+              className="tab"
+              role="tab"
+              aria-selected={activeTab === "single"}
+              aria-controls="panel-single"
+              onClick={() => setActiveTab("single")}
+            >
+              {t.tabSingle}
+            </button>
+            <button
+              id="tab-batch"
+              type="button"
+              className="tab"
+              role="tab"
+              aria-selected={activeTab === "batch"}
+              aria-controls="panel-batch"
+              onClick={() => setActiveTab("batch")}
+            >
+              {t.tabBatch}
+            </button>
+          </nav>
+
+          <div className="app-spacer" />
+
+          <select
+            aria-label={t.language}
+            value={langState.language}
+            onChange={handleLanguageChange}
           >
-            <path d="M4 20c4-12 12-12 16-16" />
-            <circle cx="4" cy="20" r="2" />
-            <circle cx="20" cy="4" r="2" />
-          </svg>
-          <span>{t.appTitle}</span>
+            <option value="ja">{t.languageJa}</option>
+            <option value="en">{t.languageEn}</option>
+          </select>
+
+          <button
+            ref={aboutButtonRef}
+            type="button"
+            className="btn icon-btn"
+            aria-label={t.about}
+            onClick={handleOpenAbout}
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="9" />
+              <path d="M12 11v5" />
+              <path d="M12 8h.01" />
+            </svg>
+          </button>
+        </header>
+
+        {/* Main layout: left parameter panel and active tab area */}
+        <div className="app-body">
+          <ParamsPanel disabled={isBatchActive} />
+          <main className="app-main">
+            <div
+              id="panel-single"
+              role="tabpanel"
+              aria-labelledby="tab-single"
+              hidden={activeTab !== "single"}
+              className="tabpanel"
+            >
+              <SingleConversionView />
+            </div>
+            <div
+              id="panel-batch"
+              role="tabpanel"
+              aria-labelledby="tab-batch"
+              hidden={activeTab !== "batch"}
+              className="tabpanel"
+            >
+              <BatchConversionView />
+            </div>
+          </main>
         </div>
-
-        <nav role="tablist" aria-label={t.mode} className="app-nav">
-          <button
-            id="tab-single"
-            type="button"
-            className="tab"
-            role="tab"
-            aria-selected={activeTab === "single"}
-            aria-controls="panel-single"
-            onClick={() => setActiveTab("single")}
-          >
-            {t.tabSingle}
-          </button>
-          <button
-            id="tab-batch"
-            type="button"
-            className="tab"
-            role="tab"
-            aria-selected={activeTab === "batch"}
-            aria-controls="panel-batch"
-            onClick={() => setActiveTab("batch")}
-          >
-            {t.tabBatch}
-          </button>
-        </nav>
-
-        <div className="app-spacer" />
-
-        <select
-          aria-label={t.language}
-          value={langState.language}
-          onChange={handleLanguageChange}
-        >
-          <option value="ja">{t.languageJa}</option>
-          <option value="en">{t.languageEn}</option>
-        </select>
-
-        <button
-          ref={aboutButtonRef}
-          type="button"
-          className="btn icon-btn"
-          aria-label={t.about}
-          onClick={handleOpenAbout}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              handleOpenAbout();
-            }
-          }}
-        >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            aria-hidden="true"
-          >
-            <circle cx="12" cy="12" r="9" />
-            <path d="M12 11v5" />
-            <path d="M12 8h.01" />
-          </svg>
-        </button>
-      </header>
-
-      {/* Main layout: left parameter panel and active tab area */}
-      <div className="app-body">
-        <ParamsPanel disabled={isBatchActive} />
-        <main className="app-main">
-          <div
-            id="panel-single"
-            role="tabpanel"
-            aria-labelledby="tab-single"
-            hidden={activeTab !== "single"}
-            className="tabpanel"
-          >
-            <SingleConversionView />
-          </div>
-          <div
-            id="panel-batch"
-            role="tabpanel"
-            aria-labelledby="tab-batch"
-            hidden={activeTab !== "batch"}
-            className="tabpanel"
-          >
-            <BatchConversionView />
-          </div>
-        </main>
       </div>
-
       <AboutDialog isOpen={isAboutOpen} onClose={handleCloseAbout} />
-    </div>
-  );
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function isValidSettings(value: unknown): value is Settings {
-  if (!isRecord(value)) {
-    return false;
-  }
-  return (
-    "params" in value &&
-    isRecord(value.params) &&
-    "preset" in value &&
-    "language" in value
+    </>
   );
 }
 
 export type AppProps = {
   readonly initialSpec?: ParamSpec;
   readonly initialLanguage?: Language;
-  readonly initialSettings?: Settings | null;
 };
 
 type InitData = {
@@ -300,7 +279,6 @@ type InitData = {
 export function App({
   initialSpec,
   initialLanguage,
-  initialSettings,
 }: AppProps = {}): ReactElement | null {
   const isDirectMode = initialSpec !== undefined;
 
@@ -308,7 +286,7 @@ export function App({
     isReady: isDirectMode,
     spec: initialSpec ?? null,
     specError: null,
-    settings: initialSettings ?? null,
+    settings: null,
   }));
 
   useEffect(() => {
@@ -318,9 +296,7 @@ export function App({
 
     let isMounted = true;
 
-    const settingsPromise = getSettings()
-      .then((res) => (isValidSettings(res) ? res : null))
-      .catch(() => null);
+    const settingsPromise = getSettings().catch(() => null);
 
     const specPromise = getParamSpec()
       .then((spec) => ({ spec, error: null }))
@@ -352,15 +328,19 @@ export function App({
 
   // Resolve language: prop > saved setting > navigator.languages
   let resolvedLanguage: Language;
+  let resolvedSavedLanguage: Language | null;
   if (initialLanguage) {
     resolvedLanguage = initialLanguage;
+    resolvedSavedLanguage = initialLanguage;
   } else if (
     initData.settings?.language === "ja" ||
     initData.settings?.language === "en"
   ) {
     resolvedLanguage = initData.settings.language;
+    resolvedSavedLanguage = initData.settings.language;
   } else {
     resolvedLanguage = resolveInitialLanguage(null);
+    resolvedSavedLanguage = null;
   }
 
   // Resolve preset: preset === null in settings represents "custom"
@@ -379,6 +359,7 @@ export function App({
       initialSpec={initData.spec}
       initialSpecError={initData.specError}
       initialLanguage={resolvedLanguage}
+      initialSavedLanguage={resolvedSavedLanguage}
       initialPreset={resolvedPreset}
       initialParams={resolvedParams}
       initialBatchInput={resolvedBatchInput}

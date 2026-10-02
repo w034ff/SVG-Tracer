@@ -9,23 +9,25 @@ import { useLanguage } from "../../state";
 export type AboutDialogProps = {
   readonly isOpen: boolean;
   readonly onClose: () => void;
-  readonly initialAbout?: AboutInfo;
 };
 
 export function AboutDialog({
   isOpen,
   onClose,
-  initialAbout,
 }: AboutDialogProps): ReactElement | null {
   const { t } = useLanguage();
-  const [aboutInfo, setAboutInfo] = useState<AboutInfo | null>(
-    initialAbout ?? null,
-  );
+  const [aboutInfo, setAboutInfo] = useState<AboutInfo | null>(null);
   const [licenses, setLicenses] = useState<readonly ThirdPartyLicense[] | null>(
     null,
   );
 
+  const dialogRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
 
   useEffect(() => {
     if (!isOpen) {
@@ -37,17 +39,15 @@ export function AboutDialog({
 
     let isMounted = true;
 
-    if (!initialAbout) {
-      getAbout()
-        .then((info) => {
-          if (isMounted) {
-            setAboutInfo(info);
-          }
-        })
-        .catch(() => {
-          // Fallback gracefully if about info cannot be loaded
-        });
-    }
+    getAbout()
+      .then((info) => {
+        if (isMounted) {
+          setAboutInfo(info);
+        }
+      })
+      .catch(() => {
+        // Fallback gracefully if about info cannot be loaded
+      });
 
     // Dynamically load third-party license catalog only when dialog is opened
     import("../../licenses")
@@ -60,19 +60,66 @@ export function AboutDialog({
         // Fallback gracefully if license bundle cannot be loaded
       });
 
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
     function handleKeyDown(event: KeyboardEvent): void {
       if (event.key === "Escape") {
         event.preventDefault();
-        onClose();
+        onCloseRef.current();
+        return;
+      }
+
+      if (event.key === "Tab") {
+        const dialogNode = dialogRef.current;
+        if (!dialogNode) {
+          return;
+        }
+
+        const focusableElements = dialogNode.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"]), details > summary',
+        );
+
+        if (focusableElements.length === 0) {
+          event.preventDefault();
+          return;
+        }
+
+        const firstElement = focusableElements[0];
+        const lastElement = focusableElements[focusableElements.length - 1];
+
+        if (event.shiftKey) {
+          if (
+            document.activeElement === firstElement ||
+            !dialogNode.contains(document.activeElement)
+          ) {
+            event.preventDefault();
+            lastElement.focus();
+          }
+        } else {
+          if (
+            document.activeElement === lastElement ||
+            !dialogNode.contains(document.activeElement)
+          ) {
+            event.preventDefault();
+            firstElement.focus();
+          }
+        }
       }
     }
 
     window.addEventListener("keydown", handleKeyDown);
     return () => {
-      isMounted = false;
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isOpen, initialAbout, onClose]);
+  }, [isOpen]);
 
   if (!isOpen) {
     return null;
@@ -83,11 +130,12 @@ export function AboutDialog({
       className="modal-overlay"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
-          onClose();
+          onCloseRef.current();
         }
       }}
     >
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="about-dialog-title"
@@ -102,7 +150,7 @@ export function AboutDialog({
             type="button"
             className="btn icon-btn"
             aria-label={t.aboutClose}
-            onClick={onClose}
+            onClick={() => onCloseRef.current()}
           >
             <svg
               width="16"
@@ -169,7 +217,11 @@ export function AboutDialog({
         </div>
 
         <div className="modal-footer">
-          <button type="button" className="btn" onClick={onClose}>
+          <button
+            type="button"
+            className="btn"
+            onClick={() => onCloseRef.current()}
+          >
             {t.aboutClose}
           </button>
         </div>

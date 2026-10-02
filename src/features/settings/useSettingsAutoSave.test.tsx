@@ -168,6 +168,73 @@ describe("useSettingsAutoSave", () => {
     });
   });
 
+  it("preserves null language when language is null and params change", () => {
+    const savedCalls: unknown[] = [];
+    mockIPC((cmd, args) => {
+      if (cmd === "save_settings") {
+        savedCalls.push(args);
+        return null;
+      }
+    });
+
+    const { rerender } = render(
+      <TestComponent
+        language={null}
+        preset="colorLogo"
+        params={SAMPLE_PARAMS}
+      />,
+    );
+
+    const changedParams = { ...SAMPLE_PARAMS, colorPrecision: 8 };
+    rerender(
+      <TestComponent language={null} preset="custom" params={changedParams} />,
+    );
+
+    act(() => {
+      vi.advanceTimersByTime(SETTINGS_SAVE_DEBOUNCE_MS);
+    });
+
+    expect(savedCalls).toHaveLength(1);
+    expect(savedCalls[0]).toEqual({
+      language: null,
+      preset: null,
+      params: changedParams,
+    });
+  });
+
+  it("saves chosen language when changing from null to en", () => {
+    const savedCalls: unknown[] = [];
+    mockIPC((cmd, args) => {
+      if (cmd === "save_settings") {
+        savedCalls.push(args);
+        return null;
+      }
+    });
+
+    const { rerender } = render(
+      <TestComponent
+        language={null}
+        preset="colorLogo"
+        params={SAMPLE_PARAMS}
+      />,
+    );
+
+    rerender(
+      <TestComponent language="en" preset="colorLogo" params={SAMPLE_PARAMS} />,
+    );
+
+    act(() => {
+      vi.advanceTimersByTime(SETTINGS_SAVE_DEBOUNCE_MS);
+    });
+
+    expect(savedCalls).toHaveLength(1);
+    expect(savedCalls[0]).toEqual({
+      language: "en",
+      preset: "colorLogo",
+      params: SAMPLE_PARAMS,
+    });
+  });
+
   it("does not crash or throw when save_settings fails", () => {
     mockIPC((cmd) => {
       if (cmd === "save_settings") {

@@ -1,10 +1,32 @@
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import { LanguageProvider } from "../../state";
 import { AboutDialog } from "./AboutDialog";
 
 describe("AboutDialog", () => {
+  beforeAll(async () => {
+    // Prewarm dynamic import of licenses to prevent timeout
+    await import("../../licenses");
+  });
+
+  beforeEach(() => {
+    mockIPC((cmd) => {
+      if (cmd === "get_about") {
+        return { version: "0.1.0" };
+      }
+      return null;
+    });
+  });
+
   afterEach(() => {
     clearMocks();
   });
@@ -20,13 +42,6 @@ describe("AboutDialog", () => {
   });
 
   it("renders dialog with version, MIT license, and third-party licenses", async () => {
-    mockIPC((cmd) => {
-      if (cmd === "get_about") {
-        return { version: "0.1.0" };
-      }
-      return null;
-    });
-
     render(
       <LanguageProvider initialLanguage="ja">
         <AboutDialog isOpen={true} onClose={vi.fn()} />
@@ -43,9 +58,9 @@ describe("AboutDialog", () => {
 
     // MIT license text from repository LICENSE file
     expect(
-      screen.getByText(/Permission is hereby granted/),
-    ).toBeInTheDocument();
-    expect(screen.getByText(/Copyright \(c\) 2026/)).toBeInTheDocument();
+      screen.getAllByText(/Permission is hereby granted/).length,
+    ).toBeGreaterThan(0);
+    expect(screen.getByText(/Copyright \(c\) 2026 w034ff/)).toBeInTheDocument();
 
     // Third-party licenses loaded dynamically
     await screen.findByText(/vtracer/);
@@ -57,15 +72,10 @@ describe("AboutDialog", () => {
     const handleClose = vi.fn();
     render(
       <LanguageProvider initialLanguage="ja">
-        <AboutDialog
-          isOpen={true}
-          onClose={handleClose}
-          initialAbout={{ version: "1.0.0" }}
-        />
+        <AboutDialog isOpen={true} onClose={handleClose} />
       </LanguageProvider>,
     );
 
-    // Wait for dynamic imports to settle
     await screen.findByText(/vtracer/);
 
     fireEvent.keyDown(window, { key: "Escape" });
@@ -76,11 +86,7 @@ describe("AboutDialog", () => {
     const handleClose = vi.fn();
     render(
       <LanguageProvider initialLanguage="ja">
-        <AboutDialog
-          isOpen={true}
-          onClose={handleClose}
-          initialAbout={{ version: "1.0.0" }}
-        />
+        <AboutDialog isOpen={true} onClose={handleClose} />
       </LanguageProvider>,
     );
 
@@ -95,11 +101,7 @@ describe("AboutDialog", () => {
   it("moves focus inside the dialog when opened", async () => {
     render(
       <LanguageProvider initialLanguage="ja">
-        <AboutDialog
-          isOpen={true}
-          onClose={vi.fn()}
-          initialAbout={{ version: "1.0.0" }}
-        />
+        <AboutDialog isOpen={true} onClose={vi.fn()} />
       </LanguageProvider>,
     );
 
@@ -107,5 +109,28 @@ describe("AboutDialog", () => {
 
     const dialog = screen.getByRole("dialog");
     expect(dialog.contains(document.activeElement)).toBe(true);
+  });
+
+  it("traps Tab key navigation inside the dialog", async () => {
+    render(
+      <LanguageProvider initialLanguage="ja">
+        <AboutDialog isOpen={true} onClose={vi.fn()} />
+      </LanguageProvider>,
+    );
+
+    await screen.findByText(/vtracer/);
+
+    const closeBtns = screen.getAllByRole("button", { name: "閉じる" });
+    const topCloseBtn = closeBtns[0];
+    const bottomCloseBtn = closeBtns[closeBtns.length - 1];
+    expect(document.activeElement).toBe(topCloseBtn);
+
+    // Shift+Tab from the first focusable element wraps to the last focusable element
+    fireEvent.keyDown(window, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(bottomCloseBtn);
+
+    // Tab from the last focusable element wraps back to the first focusable element (close button)
+    fireEvent.keyDown(window, { key: "Tab" });
+    expect(document.activeElement).toBe(topCloseBtn);
   });
 });

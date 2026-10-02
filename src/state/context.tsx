@@ -40,25 +40,33 @@ import {
 export function LanguageProvider({
   children,
   initialLanguage,
+  initialSavedLanguage,
   savedLanguage,
   languages,
 }: {
   children: ReactNode;
   initialLanguage?: Language;
+  initialSavedLanguage?: Language | null;
   savedLanguage?: string | null;
   languages?: readonly string[];
 }): ReactElement {
-  const [state, dispatch] = useReducer(languageReducer, undefined, () =>
-    initialLanguage
-      ? { language: initialLanguage }
-      : createInitialLanguageState(
-          savedLanguage,
-          languages ??
-            (typeof navigator !== "undefined"
-              ? navigator.languages
-              : undefined),
-        ),
-  );
+  const [state, dispatch] = useReducer(languageReducer, undefined, () => {
+    if (initialLanguage) {
+      const explicitSaved: Language | null =
+        initialSavedLanguage !== undefined
+          ? initialSavedLanguage
+          : initialLanguage;
+      return {
+        language: initialLanguage,
+        savedLanguage: explicitSaved,
+      };
+    }
+    return createInitialLanguageState(
+      savedLanguage,
+      languages ??
+        (typeof navigator !== "undefined" ? navigator.languages : undefined),
+    );
+  });
 
   const t = translations[state.language];
 
@@ -173,6 +181,7 @@ export function AppProviders({
   children,
   initialSpec,
   initialLanguage,
+  initialSavedLanguage,
   initialPreset,
   initialParams,
   initialBatchInput,
@@ -182,6 +191,7 @@ export function AppProviders({
   children: ReactNode;
   initialSpec?: ParamSpec | null;
   initialLanguage?: Language;
+  initialSavedLanguage?: Language | null;
   initialPreset?: PresetSelection | null;
   initialParams?: TraceParams | null;
   initialBatchInput?: PickBatchInputResult | null;
@@ -189,7 +199,10 @@ export function AppProviders({
   initialSpecError?: IpcError | null;
 }): ReactElement {
   return (
-    <LanguageProvider initialLanguage={initialLanguage}>
+    <LanguageProvider
+      initialLanguage={initialLanguage}
+      initialSavedLanguage={initialSavedLanguage}
+    >
       <ParamsProvider
         initialSpec={initialSpec}
         initialPreset={initialPreset}

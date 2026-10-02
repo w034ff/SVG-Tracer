@@ -4,7 +4,7 @@ import {
   batchConversionReducer,
   createInitialBatchConversionState,
 } from "./batchConversion";
-import { languageReducer } from "./language";
+import { createInitialLanguageState, languageReducer } from "./language";
 import { createInitialParamsState, paramsReducer } from "./params";
 import {
   calculateZoomPan,
@@ -169,13 +169,32 @@ describe("reducers", () => {
   });
 
   describe("languageReducer", () => {
-    it("updates language", () => {
-      const initial = { language: "ja" as const };
+    it("updates language and marks savedLanguage as explicit", () => {
+      const initial: { readonly language: "ja"; readonly savedLanguage: null } =
+        {
+          language: "ja",
+          savedLanguage: null,
+        };
       const updated = languageReducer(initial, {
         type: "SET_LANGUAGE",
         language: "en",
       });
       expect(updated.language).toBe("en");
+      expect(updated.savedLanguage).toBe("en");
+    });
+
+    it("creates initial state with null or explicit savedLanguage", () => {
+      const stateWithNull = createInitialLanguageState(null, ["ja"]);
+      expect(stateWithNull.language).toBe("ja");
+      expect(stateWithNull.savedLanguage).toBeNull();
+
+      const stateWithExplicit = createInitialLanguageState("en", ["ja"]);
+      expect(stateWithExplicit.language).toBe("en");
+      expect(stateWithExplicit.savedLanguage).toBe("en");
+
+      const stateWithInvalid = createInitialLanguageState("fr", ["ja"]);
+      expect(stateWithInvalid.language).toBe("ja");
+      expect(stateWithInvalid.savedLanguage).toBeNull();
     });
   });
 

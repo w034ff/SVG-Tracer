@@ -2,12 +2,13 @@ import type { Language } from "../i18n";
 import { resolveInitialLanguage } from "../i18n";
 
 export type LanguageState = {
-  language: Language;
+  readonly language: Language;
+  readonly savedLanguage: Language | null;
 };
 
 export type LanguageAction = {
-  type: "SET_LANGUAGE";
-  language: Language;
+  readonly type: "SET_LANGUAGE";
+  readonly language: Language;
 };
 
 export function languageReducer(
@@ -16,7 +17,7 @@ export function languageReducer(
 ): LanguageState {
   switch (action.type) {
     case "SET_LANGUAGE":
-      return { ...state, language: action.language };
+      return { language: action.language, savedLanguage: action.language };
     default:
       return state;
   }
@@ -26,7 +27,10 @@ export function createInitialLanguageState(
   savedLanguage?: string | null,
   languages?: readonly string[],
 ): LanguageState {
+  const validSavedLanguage: Language | null =
+    savedLanguage === "ja" || savedLanguage === "en" ? savedLanguage : null;
   return {
     language: resolveInitialLanguage(savedLanguage, languages),
+    savedLanguage: validSavedLanguage,
   };
 }

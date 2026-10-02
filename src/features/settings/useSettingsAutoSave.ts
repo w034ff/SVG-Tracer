@@ -5,7 +5,7 @@ import type { PresetSelection } from "../../state/params";
 import { SETTINGS_SAVE_DEBOUNCE_MS } from "./constants";
 
 export type SettingsAutoSaveInput = {
-  readonly language: Language;
+  readonly language: Language | null;
   readonly preset: PresetSelection;
   readonly params: TraceParams | null;
 };
@@ -23,9 +23,8 @@ export function useSettingsAutoSave({
   preset,
   params,
 }: SettingsAutoSaveInput): void {
-  const isInitialMount = useRef(true);
   const prevSavedRef = useRef<{
-    language: Language;
+    language: Language | null;
     preset: PresetSelection;
     params: TraceParams | null;
   }>({
@@ -35,17 +34,16 @@ export function useSettingsAutoSave({
   });
 
   useEffect(() => {
-    if (isInitialMount.current) {
-      isInitialMount.current = false;
+    if (!params) {
+      return;
+    }
+
+    if (prevSavedRef.current.params === null) {
       prevSavedRef.current = {
         language,
         preset,
         params,
       };
-      return;
-    }
-
-    if (!params) {
       return;
     }
 

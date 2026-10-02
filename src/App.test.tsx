@@ -1,6 +1,14 @@
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import { App } from "./App";
 import { SETTINGS_SAVE_DEBOUNCE_MS } from "./features/settings/constants";
 import type { ParamSpec, Settings, TraceParams } from "./ipc";
@@ -283,6 +291,11 @@ describe("App", () => {
   });
 
   describe("T11: Settings restoration, Auto-save, and About dialog", () => {
+    beforeAll(async () => {
+      // Prewarm dynamic import of licenses to prevent timeout in tests
+      await import("./licenses");
+    });
+
     it("restores saved language, preset, and params on startup via production get_settings path", async () => {
       const savedSettings: Settings = {
         language: "en",
@@ -563,25 +576,36 @@ describe("App", () => {
       expect(await screen.findByText("バージョン 0.1.0")).toBeInTheDocument();
 
       expect(
-        screen.getByText(/Permission is hereby granted/),
+        screen.getAllByText(/Permission is hereby granted/).length,
+      ).toBeGreaterThan(0);
+      expect(
+        screen.getByText(/Copyright \(c\) 2026 w034ff/),
       ).toBeInTheDocument();
-      expect(screen.getByText(/Copyright \(c\) 2026/)).toBeInTheDocument();
 
       await screen.findByText(/vtracer/);
       expect(screen.getAllByText(/vtracer/).length).toBeGreaterThan(0);
       expect(screen.getAllByText(/tauri/).length).toBeGreaterThan(0);
     });
 
-    it("opens dialog via Enter/Space and closes with Escape returning focus to button", async () => {
+    it("opens dialog on click and closes with Escape returning focus to button", async () => {
+      mockIPC((cmd) => {
+        if (cmd === "get_about") {
+          return { version: "0.1.0" };
+        }
+        return null;
+      });
+
       render(<App initialSpec={TEST_SPEC} initialLanguage="ja" />);
 
       const aboutBtn = screen.getByRole("button", {
         name: "このアプリについて",
       });
+      expect(aboutBtn).toHaveAttribute("type", "button");
+
       aboutBtn.focus();
       expect(document.activeElement).toBe(aboutBtn);
 
-      fireEvent.keyDown(aboutBtn, { key: "Enter" });
+      fireEvent.click(aboutBtn);
 
       const dialog = await screen.findByRole("dialog");
       expect(dialog).toBeInTheDocument();
@@ -591,18 +615,167 @@ describe("App", () => {
       fireEvent.keyDown(window, { key: "Escape" });
 
       expect(screen.queryByRole("dialog")).toBeNull();
-
       expect(document.activeElement).toBe(aboutBtn);
+    });
 
-      // Open with Space
-      fireEvent.keyDown(aboutBtn, { key: " " });
+    it("does not re-fetch get_about or move focus on batch-progress event while About dialog is open", async () => {
+      let aboutCallCount = 0;
+      mockIPC(
+        (cmd) => {
+          if (cmd === "get_about") {
+            aboutCallCount += 1;
+            return { version: "0.1.0" };
+          }
+          return null;
+        },
+        { shouldMockEvents: true },
+      );
 
-      const dialog2 = await screen.findByRole("dialog");
-      expect(dialog2).toBeInTheDocument();
+      render(<App initialSpec={TEST_SPEC} initialLanguage="ja" />);
 
+      const aboutBtn = screen.getByRole("button", {
+        name: "このアプリについて",
+      });
+      fireEvent.click(aboutBtn);
+
+      const dialog = await screen.findByRole("dialog");
+      expect(dialog).toBeInTheDocument();
+      await screen.findByText(/vtracer/);
+
+      expect(aboutCallCount).toBe(1);
+
+      // Focus an element inside the dialog other than close button
+      const summaries = document.querySelectorAll("summary");
+      expect(summaries.length).toBeGreaterThan(0);
+      summaries[0].focus();
+      expect(document.activeElement).toBe(summaries[0]);
+
+      // Emit batch-progress event while dialog is open
+      const { emit } = await import("@tauri-apps/api/event");
+      await act(async () => {
+        await emit("batch-progress", {
+          done: 1,
+          total: 2,
+          current: "file.png",
+        });
+      });
+
+      // Verify get_about was not called again and focus did not move back to close button
+      expect(aboutCallCount).toBe(1);
+      expect(document.activeElement).toBe(summaries[0]);
+    });
+
+    it("preserves null language on param change when settings had null language, and sends explicit language after user selection", async () => {
+      const savedPayloads: unknown[] = [];
+      mockIPC((cmd, args) => {
+        if (cmd === "get_settings") {
+          return {
+            language: null, // OS default
+            preset: "colorLogo",
+            params: COLOR_LOGO_PARAMS,
+            batchInput: null,
+            batchOutput: null,
+          };
+        }
+        if (cmd === "get_param_spec") {
+          return TEST_SPEC;
+        }
+        if (cmd === "save_settings") {
+          savedPayloads.push(args);
+          return null;
+        }
+        return null;
+      });
+
+      vi.useFakeTimers();
+      try {
+        render(<App />);
+
+        // Wait for ready state
+        await act(async () => {
+          await Promise.resolve();
+        });
+
+        // Change slider without touching language
+        const slider = screen.getByLabelText(/色の精度|Color precision/);
+        fireEvent.change(slider, { target: { value: "8" } });
+
+        act(() => {
+          vi.advanceTimersByTime(SETTINGS_SAVE_DEBOUNCE_MS);
+        });
+
+        expect(savedPayloads).toHaveLength(1);
+        expect(savedPayloads[0]).toEqual({
+          language: null,
+          preset: null,
+          params: { ...COLOR_LOGO_PARAMS, colorPrecision: 8 },
+        });
+
+        // Now user selects an explicit language in the select box
+        const langSelect = screen.getByLabelText(/言語|Language/);
+        if (!(langSelect instanceof HTMLSelectElement)) {
+          throw new Error("langSelect is not an HTMLSelectElement");
+        }
+        const targetLang = langSelect.value === "en" ? "ja" : "en";
+        fireEvent.change(langSelect, { target: { value: targetLang } });
+
+        act(() => {
+          vi.advanceTimersByTime(SETTINGS_SAVE_DEBOUNCE_MS);
+        });
+
+        expect(savedPayloads).toHaveLength(2);
+        expect(savedPayloads[1]).toEqual({
+          language: targetLang,
+          preset: null,
+          params: { ...COLOR_LOGO_PARAMS, colorPrecision: 8 },
+        });
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("marks background app-shell as inert and traps focus while About dialog is open", async () => {
+      mockIPC((cmd) => {
+        if (cmd === "get_about") {
+          return { version: "0.1.0" };
+        }
+        return null;
+      });
+
+      render(<App initialSpec={TEST_SPEC} initialLanguage="ja" />);
+
+      const appShell = document.querySelector(".app-shell");
+      expect(appShell).not.toHaveAttribute("inert");
+
+      const aboutBtn = screen.getByRole("button", {
+        name: "このアプリについて",
+      });
+      fireEvent.click(aboutBtn);
+
+      const dialog = await screen.findByRole("dialog");
+      expect(dialog).toBeInTheDocument();
+      await screen.findByText(/vtracer/);
+
+      // Background app-shell must have inert attribute to prevent focusing or interaction
+      expect(appShell).toHaveAttribute("inert");
+
+      // Focus is trapped inside the dialog
+      const closeBtns = screen.getAllByRole("button", { name: "閉じる" });
+      const topCloseBtn = closeBtns[0];
+      const bottomCloseBtn = closeBtns[closeBtns.length - 1];
+      expect(document.activeElement).toBe(topCloseBtn);
+
+      // Shift+Tab from closeBtn wraps to the last focusable element inside the dialog
+      fireEvent.keyDown(window, { key: "Tab", shiftKey: true });
+      expect(document.activeElement).toBe(bottomCloseBtn);
+
+      // Tab from the last element wraps back to the first focusable element (close button)
+      fireEvent.keyDown(window, { key: "Tab" });
+      expect(document.activeElement).toBe(topCloseBtn);
+
+      // Close dialog: inert removed from app-shell
       fireEvent.keyDown(window, { key: "Escape" });
-      expect(screen.queryByRole("dialog")).toBeNull();
-      expect(document.activeElement).toBe(aboutBtn);
+      expect(appShell).not.toHaveAttribute("inert");
     });
   });
 });
