@@ -367,13 +367,9 @@ export function SingleConversionView(): ReactElement {
   // Active state (image selected)
   const formatLabel = getImageFormatLabel(state.image.name);
   const dimsPart = dims ? `${dims.width} × ${dims.height}` : "";
-  const dimsText = dimsPart
-    ? formatLabel
-      ? `${dimsPart} · ${formatLabel}`
-      : dimsPart
-    : formatLabel
-      ? `· ${formatLabel}`
-      : "";
+  const dimsText = [dimsPart, formatLabel]
+    .filter((s) => s.length > 0)
+    .join(" · ");
 
   return (
     <div className="single-view">

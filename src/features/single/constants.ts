@@ -1,9 +1,12 @@
-export const CONVERT_DEBOUNCE_MS = 300;
-export const MIN_ZOOM = 0.1;
-export const MAX_ZOOM = 16.0;
-export const DEFAULT_ZOOM = 1.0;
-export const PIXELATED_ZOOM_THRESHOLD = 2.0;
-export const ZOOM_STEP_FACTOR = 1.25;
+export {
+  CONVERT_DEBOUNCE_MS,
+  DEFAULT_ZOOM,
+  MAX_ZOOM,
+  MIN_ZOOM,
+  PIXELATED_ZOOM_THRESHOLD,
+  ZOOM_STEP_FACTOR,
+} from "../../state/singleConversion";
+
 export const FIT_PADDING = 32;
 export const BYTES_PER_KB = 1024;
 export const BYTES_PER_MB = 1024 * 1024;

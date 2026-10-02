@@ -39,13 +39,7 @@ function AppContent(): ReactElement {
       isMounted = false;
       if (unlistenPromise) {
         void unlistenPromise
-          .then(async (unlisten) => {
-            try {
-              await unlisten();
-            } catch {
-              // Ignore unlisten errors on teardown
-            }
-          })
+          .then((unlisten) => unlisten())
           .catch(() => {
             // Ignore unlisten errors on teardown
           });

@@ -507,6 +507,144 @@ describe("SingleConversionView", () => {
       expect(call.params["colorPrecision"]).toBe(8);
     });
 
+    it("discards responses with older seq numbers when parameters change on the same image", async () => {
+      let convertCallCount = 0;
+      let pendingCall2Resolve: ((res: ConvertResult) => void) | null = null;
+
+      mockIPC(
+        (cmd) => {
+          if (cmd === "pick_image") {
+            return SAMPLE_IMAGE_A;
+          }
+          if (cmd === "load_preview") {
+            return new Uint8Array([137, 80, 78, 71]).buffer;
+          }
+          if (cmd === "convert") {
+            convertCallCount += 1;
+            if (convertCallCount === 1) {
+              return Promise.resolve({
+                ...SAMPLE_RESULT,
+                pathCount: 10,
+              });
+            }
+            if (convertCallCount === 2) {
+              return new Promise<ConvertResult>((resolve) => {
+                pendingCall2Resolve = resolve;
+              });
+            }
+            if (convertCallCount === 3) {
+              return Promise.resolve({
+                ...SAMPLE_RESULT,
+                pathCount: 45,
+              });
+            }
+          }
+          return null;
+        },
+        { shouldMockEvents: true },
+      );
+
+      function TestSeqModifier() {
+        const { dispatch } = useParams();
+        return (
+          <div>
+            <SingleConversionView />
+            <button
+              type="button"
+              data-testid="seq-mod-1"
+              onClick={() => {
+                dispatch({
+                  type: "SET_PARAM",
+                  key: "colorPrecision",
+                  value: 7,
+                });
+              }}
+            >
+              Mod 1
+            </button>
+            <button
+              type="button"
+              data-testid="seq-mod-2"
+              onClick={() => {
+                dispatch({
+                  type: "SET_PARAM",
+                  key: "colorPrecision",
+                  value: 8,
+                });
+              }}
+            >
+              Mod 2
+            </button>
+          </div>
+        );
+      }
+
+      render(
+        <LanguageProvider initialLanguage="ja">
+          <ParamsProvider initialSpec={TEST_SPEC}>
+            <SingleConversionProvider>
+              <TestSeqModifier />
+            </SingleConversionProvider>
+          </ParamsProvider>
+        </LanguageProvider>,
+      );
+
+      // Start from empty state, open Image A
+      fireEvent.click(screen.getByRole("button", { name: "画像を開く" }));
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(screen.getByText("logo_color.png")).toBeInTheDocument();
+
+      // Complete initial conversion (seq 1)
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(screen.getByText("10")).toBeInTheDocument();
+
+      // Trigger parameter mod 1 (seq 2)
+      act(() => {
+        fireEvent.click(screen.getByTestId("seq-mod-1"));
+      });
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+
+      // Trigger parameter mod 2 (seq 3) while seq 2 is still pending
+      act(() => {
+        fireEvent.click(screen.getByTestId("seq-mod-2"));
+      });
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      // Seq 3 completes first and updates UI to 45
+      expect(screen.getByText("45")).toBeInTheDocument();
+
+      // Now Seq 2 completes late with pathCount 999
+      await act(async () => {
+        if (pendingCall2Resolve) {
+          pendingCall2Resolve({
+            ...SAMPLE_RESULT,
+            pathCount: 999,
+          });
+        }
+      });
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      // Older Seq 2 response must be discarded; UI still shows 45 and not 999
+      expect(screen.getByText("45")).toBeInTheDocument();
+      expect(screen.queryByText("999")).not.toBeInTheDocument();
+    });
+
     it("does not display results of Image A when Image A conversion finishes while Image B is open", async () => {
       let pendingSeqAResolve: ((res: ConvertResult) => void) | null = null;
       let currentPickImage: PickedImage = SAMPLE_IMAGE_A;
