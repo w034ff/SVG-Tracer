@@ -1,6 +1,7 @@
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import {
   act,
+  createEvent,
   fireEvent,
   render,
   screen,
@@ -20,6 +21,11 @@ import {
   SingleConversionProvider,
   useParams,
 } from "../../state";
+import {
+  MOUSE_BUTTON_MIDDLE,
+  MOUSE_BUTTON_PRIMARY,
+  MOUSE_BUTTON_SECONDARY,
+} from "./constants";
 import { SingleConversionView } from "./SingleConversionView";
 
 const COLOR_LOGO_PARAMS: TraceParams = {
@@ -945,6 +951,139 @@ describe("SingleConversionView", () => {
           transform: "translate(50px, 30px)",
         });
       });
+    });
+
+    it("syncs dragging (pan) across both preview panes with middle mouse button (button 1)", async () => {
+      renderSingleView();
+
+      fireEvent.click(screen.getByRole("button", { name: "画像を開く" }));
+
+      const origImg = await screen.findByAltText("元画像のプレビュー");
+      const origViewport = origImg.closest(".preview-viewport");
+      if (!origViewport) {
+        throw new Error("Viewport not found");
+      }
+
+      // Drag from (100, 100) to (160, 140) with middle mouse button (button: 1)
+      fireEvent.pointerDown(origViewport, {
+        button: MOUSE_BUTTON_MIDDLE,
+        clientX: 100,
+        clientY: 100,
+        pointerId: 1,
+      });
+
+      fireEvent.pointerMove(origViewport, {
+        clientX: 160,
+        clientY: 140,
+        pointerId: 1,
+      });
+
+      fireEvent.pointerUp(origViewport, {
+        button: MOUSE_BUTTON_MIDDLE,
+        pointerId: 1,
+      });
+
+      // Both panes should now have transform: translate(60px, 40px)
+      const previewContents = document.querySelectorAll(".preview-content");
+      expect(previewContents).toHaveLength(2);
+      previewContents.forEach((content) => {
+        expect(content).toHaveStyle({
+          transform: "translate(60px, 40px)",
+        });
+      });
+    });
+
+    it("does not pan when dragging with right mouse button (button 2)", async () => {
+      renderSingleView();
+
+      fireEvent.click(screen.getByRole("button", { name: "画像を開く" }));
+
+      const origImg = await screen.findByAltText("元画像のプレビュー");
+      const origViewport = origImg.closest(".preview-viewport");
+      if (!origViewport) {
+        throw new Error("Viewport not found");
+      }
+
+      // Drag with right mouse button (button: 2)
+      fireEvent.pointerDown(origViewport, {
+        button: MOUSE_BUTTON_SECONDARY,
+        clientX: 100,
+        clientY: 100,
+        pointerId: 1,
+      });
+
+      fireEvent.pointerMove(origViewport, {
+        clientX: 150,
+        clientY: 130,
+        pointerId: 1,
+      });
+
+      fireEvent.pointerUp(origViewport, {
+        button: MOUSE_BUTTON_SECONDARY,
+        pointerId: 1,
+      });
+
+      // Pan should remain at initial { x: 0, y: 0 }
+      const previewContents = document.querySelectorAll(".preview-content");
+      expect(previewContents).toHaveLength(2);
+      previewContents.forEach((content) => {
+        expect(content).toHaveStyle({
+          transform: "translate(0px, 0px)",
+        });
+      });
+    });
+
+    it("prevents default on middle click pointerdown, mousedown, and auxclick to suppress autoscroll", async () => {
+      renderSingleView();
+
+      fireEvent.click(screen.getByRole("button", { name: "画像を開く" }));
+
+      const origImg = await screen.findByAltText("元画像のプレビュー");
+      const origViewport = origImg.closest(".preview-viewport");
+      if (!origViewport) {
+        throw new Error("Viewport not found");
+      }
+
+      // Middle button pointerdown should prevent default
+      const pointerDownEvent = createEvent.pointerDown(origViewport, {
+        button: MOUSE_BUTTON_MIDDLE,
+        cancelable: true,
+      });
+      fireEvent(origViewport, pointerDownEvent);
+      expect(pointerDownEvent.defaultPrevented).toBe(true);
+
+      // Primary button pointerdown should not prevent default
+      const primaryPointerDownEvent = createEvent.pointerDown(origViewport, {
+        button: MOUSE_BUTTON_PRIMARY,
+        cancelable: true,
+      });
+      fireEvent(origViewport, primaryPointerDownEvent);
+      expect(primaryPointerDownEvent.defaultPrevented).toBe(false);
+
+      // Middle button mousedown should prevent default (suppresses Windows autoscroll)
+      const mouseDownEvent = createEvent.mouseDown(origViewport, {
+        button: MOUSE_BUTTON_MIDDLE,
+        cancelable: true,
+      });
+      fireEvent(origViewport, mouseDownEvent);
+      expect(mouseDownEvent.defaultPrevented).toBe(true);
+
+      // Primary button mousedown should not prevent default
+      const primaryMouseDownEvent = createEvent.mouseDown(origViewport, {
+        button: MOUSE_BUTTON_PRIMARY,
+        cancelable: true,
+      });
+      fireEvent(origViewport, primaryMouseDownEvent);
+      expect(primaryMouseDownEvent.defaultPrevented).toBe(false);
+
+      // Middle button auxclick should prevent default
+      const auxClickEvent = new MouseEvent("auxclick", {
+        button: MOUSE_BUTTON_MIDDLE,
+        cancelable: true,
+        bubbles: true,
+      });
+      origViewport.dispatchEvent(auxClickEvent);
+      expect(auxClickEvent.defaultPrevented).toBe(true);
     });
 
     it("fits preview zoom to viewport on Zoom Fit button click", async () => {
