@@ -52,6 +52,7 @@ Rules for the implementer of this repository. Read this file and the documents b
 
 - Add a dependency only when the task needs it. Prefer the standard library and existing dependencies.
 - Allowed licenses are listed in `deny.toml` (MIT, Apache-2.0, BSD, ISC, Zlib and similar). GPL, LGPL and AGPL are not allowed.
+- After adding, removing or updating a dependency, run `npm run licenses:check` and `npm run licenses:generate`, and commit `src/licenses/third-party-licenses.json`. CI fails when the committed list is out of date. Both scripts need `cargo-deny` and `cargo-about`; if they are not installed, say so in the PR description instead of editing the list by hand.
 - `vtracer` is pinned to an exact version on purpose (`docs/design.md` §2). Do not change it.
 
 ## Comments

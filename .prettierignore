@@ -5,3 +5,4 @@ dist/
 package-lock.json
 Cargo.lock
 src/ipc/generated/
+src/licenses/third-party-licenses.json

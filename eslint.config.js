@@ -46,4 +46,11 @@ export default tseslint.config(
       ],
     },
   },
+  {
+    // Build-time scripts run in Node, not in the WebView.
+    files: ["scripts/**/*.ts"],
+    languageOptions: {
+      globals: globals.node,
+    },
+  },
 );

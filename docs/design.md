@@ -77,7 +77,9 @@
 │   ├── ipc/                  invoke / listen の型付きラッパー
 │   ├── ipc/generated/        ts-rs が生成した型（コミットする）
 │   ├── i18n/                 ja.ts / en.ts / index.ts
+│   ├── licenses/             第三者ライセンス一覧（生成してコミットする）と読み込み
 │   └── styles/               tokens.css ほか
+├── scripts/                  ビルド補助（generate-licenses.ts）
 ├── docs/                     要件定義、設計、作業計画、モックアップ
 ├── about.toml / deny.toml    ライセンス一覧生成と検査の設定
 ├── GEMINI.md                 実装者向けのコーディング規約

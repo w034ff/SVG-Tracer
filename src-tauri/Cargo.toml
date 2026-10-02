@@ -4,6 +4,8 @@ version = "0.1.0"
 description = "Vectorize bitmap images to clean SVG"
 authors = ["w034ff"]
 edition = "2024"
+license = "MIT"
+publish = false
 
 [lib]
 name = "svg_tracer_lib"
