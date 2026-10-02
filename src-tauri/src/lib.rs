@@ -27,39 +27,21 @@ pub struct AppState {
 }
 
 impl AppState {
-    /// Loads settings from `config_dir`, restores valid folders into `batch`, and saves state.
+    /// Loads settings from `config_dir`, restores validated folders into `batch`, and updates in-memory settings.
     pub fn init_settings(&self, config_dir: PathBuf) {
         let loaded = settings::load_settings(&config_dir);
 
-        // Restore input folder if it exists as directory on disk
-        if let Some(ref dir) = loaded.batch_input_dir {
-            *self
-                .batch
-                .input_dir
-                .lock()
-                .expect("input_dir mutex should not be poisoned") = Some(dir.clone());
-        } else {
-            *self
-                .batch
-                .input_dir
-                .lock()
-                .expect("input_dir mutex should not be poisoned") = None;
-        }
+        *self
+            .batch
+            .input_dir
+            .lock()
+            .expect("input_dir mutex should not be poisoned") = loaded.batch_input_dir.clone();
 
-        // Restore output folder if it exists as directory on disk
-        if let Some(ref dir) = loaded.batch_output_dir {
-            *self
-                .batch
-                .output_dir
-                .lock()
-                .expect("output_dir mutex should not be poisoned") = Some(dir.clone());
-        } else {
-            *self
-                .batch
-                .output_dir
-                .lock()
-                .expect("output_dir mutex should not be poisoned") = None;
-        }
+        *self
+            .batch
+            .output_dir
+            .lock()
+            .expect("output_dir mutex should not be poisoned") = loaded.batch_output_dir.clone();
 
         *self
             .settings
@@ -84,12 +66,10 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
-            let config_dir = app
-                .path()
-                .app_config_dir()
-                .unwrap_or_else(|_| PathBuf::from("."));
-            let state = app.state::<AppState>();
-            state.init_settings(config_dir);
+            if let Ok(config_dir) = app.path().app_config_dir() {
+                let state = app.state::<AppState>();
+                state.init_settings(config_dir);
+            }
             Ok(())
         })
         .manage(AppState::default())

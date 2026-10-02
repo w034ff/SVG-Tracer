@@ -8,7 +8,7 @@ use svg_tracer_lib::commands::{
 };
 use svg_tracer_lib::error::ErrorCode;
 use svg_tracer_lib::settings::{
-    SCHEMA_VERSION, SETTINGS_FILE_NAME, SettingsFile, load_settings, save_settings_to_dir,
+    Language, SCHEMA_VERSION, SETTINGS_FILE_NAME, SettingsFile, load_settings, save_settings_to_dir,
 };
 use tempfile::tempdir;
 use tracer::Preset;
@@ -21,7 +21,7 @@ fn test_roundtrip_save_and_load_matches_original() {
 
     let initial = SettingsFile {
         schema_version: SCHEMA_VERSION,
-        language: Some("en".to_string()),
+        language: Some(Language::En),
         preset: Some(Preset::ColorIcon),
         params: Preset::ColorIcon.params(),
         batch_input_dir: Some(input_dir.path().to_path_buf()),
@@ -32,7 +32,7 @@ fn test_roundtrip_save_and_load_matches_original() {
     let loaded = load_settings(config_dir.path());
 
     assert_eq!(loaded.schema_version, SCHEMA_VERSION);
-    assert_eq!(loaded.language.as_deref(), Some("en"));
+    assert_eq!(loaded.language, Some(Language::En));
     assert_eq!(loaded.preset, Some(Preset::ColorIcon));
     assert_eq!(loaded.params, Preset::ColorIcon.params());
     assert_eq!(loaded.batch_input_dir, Some(input_dir.path().to_path_buf()));
@@ -52,7 +52,7 @@ fn test_roundtrip_custom_preset_retains_null_preset_and_custom_params() {
 
     let initial = SettingsFile {
         schema_version: SCHEMA_VERSION,
-        language: Some("ja".to_string()),
+        language: Some(Language::Ja),
         preset: None,
         params: custom_params.clone(),
         batch_input_dir: None,
@@ -64,7 +64,7 @@ fn test_roundtrip_custom_preset_retains_null_preset_and_custom_params() {
 
     assert_eq!(loaded.preset, None);
     assert_eq!(loaded.params, custom_params);
-    assert_eq!(loaded.language.as_deref(), Some("ja"));
+    assert_eq!(loaded.language, Some(Language::Ja));
 }
 
 #[test]
@@ -78,7 +78,9 @@ fn test_load_corrupted_json_returns_defaults() {
     assert_eq!(loaded, SettingsFile::default());
 
     // Valid JSON but non-object type (array)
-    fs::write(&file_path, "[1, 2, 3]").expect("writing file should succeed");
+    let array_json =
+        serde_json::to_string(&serde_json::json!([1, 2, 3])).expect("serialization should succeed");
+    fs::write(&file_path, array_json).expect("writing file should succeed");
     let loaded = load_settings(config_dir.path());
     assert_eq!(loaded, SettingsFile::default());
 }
@@ -89,35 +91,32 @@ fn test_load_unknown_schema_version_returns_defaults() {
     let file_path = config_dir.path().join(SETTINGS_FILE_NAME);
 
     // Future/unknown schema version (99)
-    let json_future = r#"{
+    let json_future = serde_json::json!({
         "schemaVersion": 99,
         "language": "ja",
         "preset": "colorIcon",
-        "params": {
-            "colorMode": "color",
-            "colorPrecision": 4,
-            "filterSpeckle": 8,
-            "cornerThreshold": 60,
-            "curveMode": "spline",
-            "layerDifference": 32,
-            "hierarchical": "stacked",
-            "lengthThreshold": 4.0,
-            "spliceThreshold": 45,
-            "pathPrecision": 2
-        },
+        "params": Preset::ColorIcon.params(),
         "batchInputDir": null,
         "batchOutputDir": null
-    }"#;
-    fs::write(&file_path, json_future).expect("writing file should succeed");
+    });
+    fs::write(
+        &file_path,
+        serde_json::to_string(&json_future).expect("serialization should succeed"),
+    )
+    .expect("writing file should succeed");
     let loaded = load_settings(config_dir.path());
     assert_eq!(loaded, SettingsFile::default());
 
     // Missing schemaVersion
-    let json_missing_version = r#"{
+    let json_missing_version = serde_json::json!({
         "language": "ja",
         "preset": "colorIcon"
-    }"#;
-    fs::write(&file_path, json_missing_version).expect("writing file should succeed");
+    });
+    fs::write(
+        &file_path,
+        serde_json::to_string(&json_missing_version).expect("serialization should succeed"),
+    )
+    .expect("writing file should succeed");
     let loaded = load_settings(config_dir.path());
     assert_eq!(loaded, SettingsFile::default());
 }
@@ -127,27 +126,20 @@ fn test_load_nonexistent_directories_resets_folders_to_unselected() {
     let config_dir = tempdir().expect("tempdir creation should succeed");
     let file_path = config_dir.path().join(SETTINGS_FILE_NAME);
 
-    let json = r#"{
+    let json = serde_json::json!({
         "schemaVersion": 1,
         "language": null,
         "preset": "colorLogo",
-        "params": {
-            "colorMode": "color",
-            "colorPrecision": 6,
-            "filterSpeckle": 4,
-            "cornerThreshold": 60,
-            "curveMode": "spline",
-            "layerDifference": 16,
-            "hierarchical": "stacked",
-            "lengthThreshold": 4.0,
-            "spliceThreshold": 45,
-            "pathPrecision": 2
-        },
+        "params": Preset::ColorLogo.params(),
         "batchInputDir": "/nonexistent/directory/input/path",
         "batchOutputDir": "/nonexistent/directory/output/path"
-    }"#;
+    });
 
-    fs::write(&file_path, json).expect("writing file should succeed");
+    fs::write(
+        &file_path,
+        serde_json::to_string(&json).expect("serialization should succeed"),
+    )
+    .expect("writing file should succeed");
     let loaded = load_settings(config_dir.path());
 
     assert_eq!(loaded.batch_input_dir, None);
@@ -162,31 +154,20 @@ fn test_load_unknown_preset_resets_preset_and_params_preserving_language_and_fol
     let output_dir = tempdir().expect("tempdir creation should succeed");
     let file_path = config_dir.path().join(SETTINGS_FILE_NAME);
 
-    let json = format!(
-        r#"{{
+    let json = serde_json::json!({
         "schemaVersion": 1,
         "language": "ja",
         "preset": "nonExistentPresetName",
-        "params": {{
-            "colorMode": "color",
-            "colorPrecision": 4,
-            "filterSpeckle": 8,
-            "cornerThreshold": 60,
-            "curveMode": "spline",
-            "layerDifference": 32,
-            "hierarchical": "stacked",
-            "lengthThreshold": 4.0,
-            "spliceThreshold": 45,
-            "pathPrecision": 2
-        }},
-        "batchInputDir": {:?},
-        "batchOutputDir": {:?}
-    }}"#,
-        input_dir.path().to_str().expect("valid utf8 path"),
-        output_dir.path().to_str().expect("valid utf8 path")
-    );
+        "params": Preset::ColorIcon.params(),
+        "batchInputDir": input_dir.path(),
+        "batchOutputDir": output_dir.path()
+    });
 
-    fs::write(&file_path, json).expect("writing file should succeed");
+    fs::write(
+        &file_path,
+        serde_json::to_string(&json).expect("serialization should succeed"),
+    )
+    .expect("writing file should succeed");
     let loaded = load_settings(config_dir.path());
 
     // Both preset and params must be reset to ColorLogo defaults
@@ -194,7 +175,7 @@ fn test_load_unknown_preset_resets_preset_and_params_preserving_language_and_fol
     assert_eq!(loaded.params, Preset::ColorLogo.params());
 
     // Language and directories must be preserved
-    assert_eq!(loaded.language.as_deref(), Some("ja"));
+    assert_eq!(loaded.language, Some(Language::Ja));
     assert_eq!(loaded.batch_input_dir, Some(input_dir.path().to_path_buf()));
     assert_eq!(
         loaded.batch_output_dir,
@@ -209,31 +190,23 @@ fn test_load_out_of_bounds_params_resets_preset_and_params_preserving_language_a
     let output_dir = tempdir().expect("tempdir creation should succeed");
     let file_path = config_dir.path().join(SETTINGS_FILE_NAME);
 
-    let json = format!(
-        r#"{{
+    let mut invalid_params = Preset::ColorIcon.params();
+    invalid_params.color_precision = 99;
+
+    let json = serde_json::json!({
         "schemaVersion": 1,
         "language": "en",
         "preset": "colorIcon",
-        "params": {{
-            "colorMode": "color",
-            "colorPrecision": 99,
-            "filterSpeckle": 8,
-            "cornerThreshold": 60,
-            "curveMode": "spline",
-            "layerDifference": 32,
-            "hierarchical": "stacked",
-            "lengthThreshold": 4.0,
-            "spliceThreshold": 45,
-            "pathPrecision": 2
-        }},
-        "batchInputDir": {:?},
-        "batchOutputDir": {:?}
-    }}"#,
-        input_dir.path().to_str().expect("valid utf8 path"),
-        output_dir.path().to_str().expect("valid utf8 path")
-    );
+        "params": invalid_params,
+        "batchInputDir": input_dir.path(),
+        "batchOutputDir": output_dir.path()
+    });
 
-    fs::write(&file_path, json).expect("writing file should succeed");
+    fs::write(
+        &file_path,
+        serde_json::to_string(&json).expect("serialization should succeed"),
+    )
+    .expect("writing file should succeed");
     let loaded = load_settings(config_dir.path());
 
     // Both preset and params must be reset to defaults
@@ -241,12 +214,42 @@ fn test_load_out_of_bounds_params_resets_preset_and_params_preserving_language_a
     assert_eq!(loaded.params, Preset::ColorLogo.params());
 
     // Language and directories must be preserved
-    assert_eq!(loaded.language.as_deref(), Some("en"));
+    assert_eq!(loaded.language, Some(Language::En));
     assert_eq!(loaded.batch_input_dir, Some(input_dir.path().to_path_buf()));
     assert_eq!(
         loaded.batch_output_dir,
         Some(output_dir.path().to_path_buf())
     );
+}
+
+#[test]
+fn test_load_invalid_language_falls_back_to_none_preserving_other_fields() {
+    let config_dir = tempdir().expect("tempdir creation should succeed");
+    let file_path = config_dir.path().join(SETTINGS_FILE_NAME);
+
+    // Unknown language string "french"
+    let json = serde_json::json!({
+        "schemaVersion": 1,
+        "language": "french",
+        "preset": "colorIcon",
+        "params": Preset::ColorIcon.params(),
+        "batchInputDir": null,
+        "batchOutputDir": null
+    });
+
+    fs::write(
+        &file_path,
+        serde_json::to_string(&json).expect("serialization should succeed"),
+    )
+    .expect("writing file should succeed");
+    let loaded = load_settings(config_dir.path());
+
+    assert_eq!(loaded.language, None);
+    assert_eq!(loaded.preset, Some(Preset::ColorIcon));
+    assert_eq!(loaded.params, Preset::ColorIcon.params());
+
+    // Ensure deserializing invalid language fails at serde level
+    assert!(serde_json::from_str::<Language>(r#""french""#).is_err());
 }
 
 #[test]
@@ -260,7 +263,7 @@ fn test_save_settings_with_invalid_params_returns_invalid_params_and_does_not_sa
     // Save initial valid settings
     let valid_params = Preset::ColorLogo.params();
     save_settings_internal(
-        Some("ja".to_string()),
+        Some(Language::Ja),
         Some(Preset::ColorLogo),
         valid_params.clone(),
         &state,
@@ -275,7 +278,7 @@ fn test_save_settings_with_invalid_params_returns_invalid_params_and_does_not_sa
     invalid_params.color_precision = 99;
 
     let result = save_settings_internal(
-        Some("en".to_string()),
+        Some(Language::En),
         Some(Preset::ColorIcon),
         invalid_params,
         &state,
@@ -293,33 +296,13 @@ fn test_save_settings_with_invalid_params_returns_invalid_params_and_does_not_sa
         .lock()
         .expect("mutex should not be poisoned")
         .clone();
-    assert_eq!(in_memory.language.as_deref(), Some("ja"));
+    assert_eq!(in_memory.language, Some(Language::Ja));
     assert_eq!(in_memory.preset, Some(Preset::ColorLogo));
     assert_eq!(in_memory.params, valid_params);
 
     // On-disk file must remain unchanged
     let saved_after = fs::read_to_string(&file_path).expect("reading file should succeed");
     assert_eq!(saved_before, saved_after);
-}
-
-#[test]
-fn test_save_settings_with_invalid_language_returns_invalid_params() {
-    let config_dir = tempdir().expect("tempdir creation should succeed");
-    let state = AppState::default();
-    state.init_settings(config_dir.path().to_path_buf());
-
-    let valid_params = Preset::ColorLogo.params();
-    let result = save_settings_internal(
-        Some("french".to_string()),
-        Some(Preset::ColorLogo),
-        valid_params,
-        &state,
-    );
-
-    match result {
-        Err(err) => assert_eq!(err.code, ErrorCode::InvalidParams),
-        Ok(_) => panic!("Expected save_settings to reject invalid language with InvalidParams"),
-    }
 }
 
 #[test]
@@ -341,7 +324,7 @@ fn test_save_settings_preserves_in_memory_folders() {
 
     // Save new settings without specifying directories
     save_settings_internal(
-        Some("en".to_string()),
+        Some(Language::En),
         Some(Preset::Binary),
         Preset::Binary.params(),
         &state,
@@ -349,7 +332,7 @@ fn test_save_settings_preserves_in_memory_folders() {
     .expect("save_settings should succeed");
 
     let loaded = load_settings(config_dir.path());
-    assert_eq!(loaded.language.as_deref(), Some("en"));
+    assert_eq!(loaded.language, Some(Language::En));
     assert_eq!(loaded.preset, Some(Preset::Binary));
     assert_eq!(loaded.batch_input_dir, Some(input_dir.path().to_path_buf()));
     assert_eq!(
@@ -400,21 +383,13 @@ fn test_get_settings_with_active_folders_enumerates_targets_and_returns_labels()
     assert_eq!(batch_input.ignored_count, 2); // readme.txt and .hidden.png
     assert_eq!(
         batch_input.dir_label,
-        input_dir
-            .path()
-            .file_name()
-            .expect("file_name exists")
-            .to_string_lossy()
+        svg_tracer_lib::batch::extract_dir_label(input_dir.path())
     );
 
     let batch_output = settings.batch_output.expect("batch_output should be Some");
     assert_eq!(
         batch_output.dir_label,
-        output_dir
-            .path()
-            .file_name()
-            .expect("file_name exists")
-            .to_string_lossy()
+        svg_tracer_lib::batch::extract_dir_label(output_dir.path())
     );
 }
 
@@ -436,11 +411,7 @@ fn test_folder_recording_via_pick_batch_input_and_output() {
     let pick_output = pick_batch_output_internal(output_dir.path().to_path_buf(), &state);
     assert_eq!(
         pick_output.dir_label,
-        output_dir
-            .path()
-            .file_name()
-            .expect("file_name exists")
-            .to_string_lossy()
+        svg_tracer_lib::batch::extract_dir_label(output_dir.path())
     );
 
     // Verify settings.json on disk was automatically updated
@@ -470,9 +441,25 @@ fn test_folder_recording_tolerates_disk_save_failure() {
     // Folder selection should still succeed despite disk save failure per design §5.6
     let input_res = pick_batch_input_internal(input_dir.path().to_path_buf(), &state);
     assert!(input_res.is_ok());
+    assert_eq!(
+        *state
+            .batch
+            .input_dir
+            .lock()
+            .expect("mutex should not be poisoned"),
+        Some(input_dir.path().to_path_buf())
+    );
 
     let output_res = pick_batch_output_internal(output_dir.path().to_path_buf(), &state);
     assert!(!output_res.dir_label.is_empty());
+    assert_eq!(
+        *state
+            .batch
+            .output_dir
+            .lock()
+            .expect("mutex should not be poisoned"),
+        Some(output_dir.path().to_path_buf())
+    );
 }
 
 #[test]
@@ -483,7 +470,7 @@ fn test_init_settings_restores_existing_folder_and_discards_missing_folder() {
 
     let initial = SettingsFile {
         schema_version: SCHEMA_VERSION,
-        language: Some("ja".to_string()),
+        language: Some(Language::Ja),
         preset: Some(Preset::ColorLogo),
         params: Preset::ColorLogo.params(),
         batch_input_dir: Some(existing_input.path().to_path_buf()),

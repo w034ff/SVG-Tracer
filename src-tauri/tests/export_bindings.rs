@@ -8,7 +8,7 @@ use svg_tracer_lib::commands::{
     ConvertResult, ImageDroppedPayload, ParamSpec, PickedImage, SaveSvgResult,
 };
 use svg_tracer_lib::error::{ErrorCode, IpcError};
-use svg_tracer_lib::settings::{AboutInfo, Settings};
+use svg_tracer_lib::settings::{AboutInfo, Language, Settings};
 use ts_rs::{Config, TS};
 
 #[test]
@@ -32,6 +32,7 @@ fn export_typescript_bindings() {
     BatchItemPayload::export_all(&cfg).expect("Failed to export BatchItemPayload");
     BatchFinishedPayload::export_all(&cfg).expect("Failed to export BatchFinishedPayload");
 
+    Language::export_all(&cfg).expect("Failed to export Language");
     Settings::export_all(&cfg).expect("Failed to export Settings");
     AboutInfo::export_all(&cfg).expect("Failed to export AboutInfo");
 }

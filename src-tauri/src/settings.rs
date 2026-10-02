@@ -16,14 +16,22 @@ pub const SCHEMA_VERSION: u32 = 1;
 /// Filename of the settings file on disk per design §5.6.
 pub const SETTINGS_FILE_NAME: &str = "settings.json";
 
+/// Supported UI languages per design §5.6 and §8.4.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "lowercase")]
+pub enum Language {
+    Ja,
+    En,
+}
+
 /// Persistent settings structure stored on disk in `settings.json` per design §5.6.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SettingsFile {
     /// Schema version for future format migrations.
     pub schema_version: u32,
-    /// Selected UI language ("ja", "en", or None).
-    pub language: Option<String>,
+    /// Selected UI language, or None for system/unconfigured default.
+    pub language: Option<Language>,
     /// Selected preset name, or None for custom parameters.
     pub preset: Option<Preset>,
     /// Vectorization parameters.
@@ -55,8 +63,8 @@ impl Default for SettingsFile {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
-    /// Selected UI language ("ja", "en", or None).
-    pub language: Option<String>,
+    /// Selected UI language, or None for system/unconfigured default.
+    pub language: Option<Language>,
     /// Selected preset name, or None for custom parameters.
     pub preset: Option<Preset>,
     /// Vectorization parameters.
@@ -97,11 +105,10 @@ pub fn parse_settings_json(json_str: &str) -> SettingsFile {
         return SettingsFile::default();
     }
 
-    // Language check: only "ja" or "en" are accepted; otherwise None
-    let language = match obj.get("language") {
-        Some(serde_json::Value::String(s)) if s == "ja" || s == "en" => Some(s.clone()),
-        _ => None,
-    };
+    // Language check: parse as Language enum, falling back to None if unknown/null
+    let language = obj
+        .get("language")
+        .and_then(|v| serde_json::from_value::<Language>(v.clone()).ok());
 
     // Preset & Params check:
     // If preset is unknown or params is out of range, reset both to defaults per design §5.6.
@@ -243,15 +250,16 @@ impl SettingsManager {
         }
     }
 
-    /// Records batch input directory selection and attempts to persist to disk.
-    ///
-    /// Persistence errors are intentionally ignored per design §5.6 (Should requirement).
-    pub fn record_batch_input(&self, path: PathBuf) {
+    /// Mutates the in-memory settings file and attempts to persist to disk while holding the lock.
+    fn update_folder_and_persist<F>(&self, update: F)
+    where
+        F: FnOnce(&mut SettingsFile),
+    {
         let mut file = self
             .file
             .lock()
             .expect("settings file mutex should not be poisoned");
-        file.batch_input_dir = Some(path);
+        update(&mut file);
         let config_dir = self
             .config_dir
             .lock()
@@ -262,22 +270,47 @@ impl SettingsManager {
         }
     }
 
+    /// Records batch input directory selection and attempts to persist to disk.
+    ///
+    /// Persistence errors are intentionally ignored per design §5.6 (Should requirement).
+    pub fn record_batch_input(&self, path: PathBuf) {
+        self.update_folder_and_persist(|file| {
+            file.batch_input_dir = Some(path);
+        });
+    }
+
     /// Records batch output directory selection and attempts to persist to disk.
     ///
     /// Persistence errors are intentionally ignored per design §5.6 (Should requirement).
     pub fn record_batch_output(&self, path: PathBuf) {
+        self.update_folder_and_persist(|file| {
+            file.batch_output_dir = Some(path);
+        });
+    }
+
+    /// Saves trace settings to memory and persists them to disk while holding the settings lock.
+    pub fn save_settings(
+        &self,
+        language: Option<Language>,
+        preset: Option<Preset>,
+        params: TraceParams,
+    ) -> Result<(), IpcError> {
         let mut file = self
             .file
             .lock()
             .expect("settings file mutex should not be poisoned");
-        file.batch_output_dir = Some(path);
+        file.language = language;
+        file.preset = preset;
+        file.params = params;
+
         let config_dir = self
             .config_dir
             .lock()
             .expect("config_dir mutex should not be poisoned")
             .clone();
         if let Some(dir) = config_dir {
-            let _ = save_settings_to_dir(&dir, &file);
+            save_settings_to_dir(&dir, &file)?;
         }
+        Ok(())
     }
 }

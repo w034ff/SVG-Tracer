@@ -21,7 +21,7 @@ use crate::batch::{
     PickBatchOutputResult,
 };
 use crate::error::{ErrorCode, IpcError};
-use crate::settings::{self, AboutInfo, Settings};
+use crate::settings::{AboutInfo, Language, Settings};
 
 /// Integer range specification with minimum and maximum values.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -166,7 +166,7 @@ pub fn get_settings_internal(state: &AppState) -> Settings {
             .file
             .lock()
             .expect("settings file mutex should not be poisoned");
-        (file.language.clone(), file.preset, file.params.clone())
+        (file.language, file.preset, file.params.clone())
     };
 
     let batch_input = {
@@ -178,10 +178,7 @@ pub fn get_settings_internal(state: &AppState) -> Settings {
         match *input_guard {
             Some(ref path) if path.is_dir() => match crate::batch::enumerate_targets(path) {
                 Ok((targets, ignored_count)) => {
-                    let dir_label = path
-                        .file_name()
-                        .map(|n| n.to_string_lossy().to_string())
-                        .unwrap_or_else(|| path.to_string_lossy().to_string());
+                    let dir_label = crate::batch::extract_dir_label(path);
                     Some(PickBatchInputResult {
                         dir_label,
                         targets,
@@ -202,10 +199,7 @@ pub fn get_settings_internal(state: &AppState) -> Settings {
             .expect("output_dir mutex should not be poisoned");
         match *output_guard {
             Some(ref path) if path.is_dir() => {
-                let dir_label = path
-                    .file_name()
-                    .map(|n| n.to_string_lossy().to_string())
-                    .unwrap_or_else(|| path.to_string_lossy().to_string());
+                let dir_label = crate::batch::extract_dir_label(path);
                 Some(PickBatchOutputResult { dir_label })
             }
             _ => None,
@@ -227,7 +221,7 @@ pub fn get_settings_internal(state: &AppState) -> Settings {
 /// Preserves existing directory paths from in-memory state.
 #[tauri::command]
 pub async fn save_settings(
-    language: Option<String>,
+    language: Option<Language>,
     preset: Option<Preset>,
     params: TraceParams,
     state: tauri::State<'_, AppState>,
@@ -237,47 +231,13 @@ pub async fn save_settings(
 
 /// Internal implementation of `save_settings` decoupled from `tauri::State`.
 pub fn save_settings_internal(
-    language: Option<String>,
+    language: Option<Language>,
     preset: Option<Preset>,
     params: TraceParams,
     state: &AppState,
 ) -> Result<(), IpcError> {
-    // 1. Validate trace parameters first per design §4.5
     params.validate()?;
-
-    // 2. Validate language: only "ja", "en", or None allowed
-    if let Some(ref lang) = language
-        && lang != "ja"
-        && lang != "en"
-    {
-        return Err(IpcError::from_code(ErrorCode::InvalidParams));
-    }
-
-    // 3. Update in-memory settings while preserving folder paths
-    let settings_to_save = {
-        let mut file_guard = state
-            .settings
-            .file
-            .lock()
-            .expect("settings file mutex should not be poisoned");
-        file_guard.language = language;
-        file_guard.preset = preset;
-        file_guard.params = params;
-        file_guard.clone()
-    };
-
-    // 4. Save to disk if config_dir is configured
-    let config_dir_opt = state
-        .settings
-        .config_dir
-        .lock()
-        .expect("config_dir mutex should not be poisoned")
-        .clone();
-    if let Some(config_dir) = config_dir_opt {
-        settings::save_settings_to_dir(&config_dir, &settings_to_save)?;
-    }
-
-    Ok(())
+    state.settings.save_settings(language, preset, params)
 }
 
 /// Returns application package version information per design §6.1.
