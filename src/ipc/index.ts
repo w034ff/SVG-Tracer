@@ -1,5 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import type { BatchFinishedPayload } from "./generated/BatchFinishedPayload";
+import type { BatchItemPayload } from "./generated/BatchItemPayload";
+import type { BatchProgressPayload } from "./generated/BatchProgressPayload";
 import type { ConvertResult } from "./generated/ConvertResult";
 import type { ErrorCode } from "./generated/ErrorCode";
 import type { ImageDroppedPayload } from "./generated/ImageDroppedPayload";
@@ -188,6 +191,39 @@ export async function onImageDropped(
   handler: (payload: ImageDroppedPayload) => void,
 ): Promise<UnlistenFn> {
   return listen<ImageDroppedPayload>("image-dropped", (event) => {
+    handler(event.payload);
+  });
+}
+
+/**
+ * Subscribes to the `batch-progress` event per design §6.2.
+ */
+export async function onBatchProgress(
+  handler: (payload: BatchProgressPayload) => void,
+): Promise<UnlistenFn> {
+  return listen<BatchProgressPayload>("batch-progress", (event) => {
+    handler(event.payload);
+  });
+}
+
+/**
+ * Subscribes to the `batch-item` event per design §6.2.
+ */
+export async function onBatchItem(
+  handler: (payload: BatchItemPayload) => void,
+): Promise<UnlistenFn> {
+  return listen<BatchItemPayload>("batch-item", (event) => {
+    handler(event.payload);
+  });
+}
+
+/**
+ * Subscribes to the `batch-finished` event per design §6.2.
+ */
+export async function onBatchFinished(
+  handler: (payload: BatchFinishedPayload) => void,
+): Promise<UnlistenFn> {
+  return listen<BatchFinishedPayload>("batch-finished", (event) => {
     handler(event.payload);
   });
 }

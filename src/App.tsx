@@ -4,17 +4,34 @@ import {
   type ChangeEvent,
   type ReactElement,
 } from "react";
+import { BatchConversionView } from "./features/batch/BatchConversionView";
 import { ParamsPanel } from "./features/settings/ParamsPanel";
 import { SingleConversionView } from "./features/single/SingleConversionView";
 import type { Language } from "./i18n";
-import { onImageDropped, type ParamSpec, type UnlistenFn } from "./ipc";
-import { AppProviders, useLanguage, useSingleConversion } from "./state";
+import {
+  onBatchFinished,
+  onBatchItem,
+  onBatchProgress,
+  onImageDropped,
+  type ParamSpec,
+  type UnlistenFn,
+} from "./ipc";
+import {
+  AppProviders,
+  useBatchConversion,
+  useLanguage,
+  useSingleConversion,
+} from "./state";
 import "./styles/app.css";
 
 function AppContent(): ReactElement {
   const { t, state: langState, dispatch: langDispatch } = useLanguage();
   const { dispatch: singleDispatch } = useSingleConversion();
+  const { state: batchState, dispatch: batchDispatch } = useBatchConversion();
   const [activeTab, setActiveTab] = useState<"single" | "batch">("single");
+
+  const isBatchActive =
+    batchState.status === "running" || batchState.status === "cancelling";
 
   useEffect(() => {
     let unlistenPromise: Promise<UnlistenFn> | null = null;
@@ -46,6 +63,46 @@ function AppContent(): ReactElement {
       }
     };
   }, [singleDispatch]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const unlisteners: Promise<UnlistenFn>[] = [];
+
+    unlisteners.push(
+      onBatchProgress((payload) => {
+        if (isMounted) {
+          batchDispatch({ type: "UPDATE_PROGRESS", progress: payload });
+        }
+      }),
+    );
+
+    unlisteners.push(
+      onBatchItem((payload) => {
+        if (isMounted) {
+          batchDispatch({ type: "ITEM_PROCESSED", item: payload });
+        }
+      }),
+    );
+
+    unlisteners.push(
+      onBatchFinished((payload) => {
+        if (isMounted) {
+          batchDispatch({ type: "FINISH_BATCH", finished: payload });
+        }
+      }),
+    );
+
+    return () => {
+      isMounted = false;
+      for (const p of unlisteners) {
+        void p
+          .then((unlisten) => unlisten())
+          .catch(() => {
+            // Ignore unlisten errors on teardown
+          });
+      }
+    };
+  }, [batchDispatch]);
 
   function handleLanguageChange(event: ChangeEvent<HTMLSelectElement>): void {
     const nextLang = event.target.value;
@@ -132,7 +189,7 @@ function AppContent(): ReactElement {
 
       {/* Main layout: left parameter panel and active tab area */}
       <div className="app-body">
-        <ParamsPanel />
+        <ParamsPanel disabled={isBatchActive} />
         <main className="app-main">
           <div
             id="panel-single"
@@ -149,7 +206,9 @@ function AppContent(): ReactElement {
             aria-labelledby="tab-batch"
             hidden={activeTab !== "batch"}
             className="tabpanel"
-          />
+          >
+            <BatchConversionView />
+          </div>
         </main>
       </div>
     </div>

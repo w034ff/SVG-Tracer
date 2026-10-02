@@ -265,4 +265,27 @@ describe("ParamsPanel", () => {
     expect(advancedButton).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByLabelText(/座標の精度/)).not.toBeInTheDocument();
   });
+
+  it("disables all controls and displays notice when disabled prop is true", () => {
+    render(
+      <LanguageProvider initialLanguage="ja">
+        <ParamsProvider initialSpec={TEST_SPEC}>
+          <ParamsPanel disabled={true} />
+        </ParamsProvider>
+      </LanguageProvider>,
+    );
+
+    expect(
+      screen.getByText("変換中は設定を変更できません"),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("プリセット")).toBeDisabled();
+    expect(screen.getByLabelText(/色の精度/)).toBeDisabled();
+    expect(screen.getByLabelText(/ノイズ除去/)).toBeDisabled();
+    expect(screen.getByLabelText(/角の判定/)).toBeDisabled();
+    expect(screen.getByRole("button", { name: "カラー" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "白黒" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "曲線" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "多角形" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /詳細設定/ })).toBeDisabled();
+  });
 });
