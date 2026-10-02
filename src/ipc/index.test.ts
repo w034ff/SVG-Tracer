@@ -234,4 +234,90 @@ describe("ipc wrapper", () => {
       expect(received).toHaveLength(1);
     });
   });
+
+  describe("batch event listeners", () => {
+    it("onBatchProgress receives batch-progress events and unlistens cleanly", async () => {
+      const { emit } = await import("@tauri-apps/api/event");
+      const { onBatchProgress } = await import("./index");
+      mockIPC(() => {}, { shouldMockEvents: true });
+
+      const received: unknown[] = [];
+      const unlisten = await onBatchProgress((payload) => {
+        received.push(payload);
+      });
+
+      const payload = { done: 3, total: 10, current: "image3.png" };
+      await emit("batch-progress", payload);
+      expect(received).toEqual([payload]);
+
+      await unlisten();
+
+      await emit("batch-progress", {
+        done: 4,
+        total: 10,
+        current: "image4.png",
+      });
+      expect(received).toHaveLength(1);
+    });
+
+    it("onBatchItem receives batch-item events and unlistens cleanly", async () => {
+      const { emit } = await import("@tauri-apps/api/event");
+      const { onBatchItem } = await import("./index");
+      mockIPC(() => {}, { shouldMockEvents: true });
+
+      const received: unknown[] = [];
+      const unlisten = await onBatchItem((payload) => {
+        received.push(payload);
+      });
+
+      const payload = {
+        name: "test.png",
+        status: "ok" as const,
+        outputName: "test.svg",
+        error: null,
+      };
+      await emit("batch-item", payload);
+      expect(received).toEqual([payload]);
+
+      await unlisten();
+
+      await emit("batch-item", {
+        name: "test2.png",
+        status: "failed" as const,
+        outputName: null,
+        error: null,
+      });
+      expect(received).toHaveLength(1);
+    });
+
+    it("onBatchFinished receives batch-finished events and unlistens cleanly", async () => {
+      const { emit } = await import("@tauri-apps/api/event");
+      const { onBatchFinished } = await import("./index");
+      mockIPC(() => {}, { shouldMockEvents: true });
+
+      const received: unknown[] = [];
+      const unlisten = await onBatchFinished((payload) => {
+        received.push(payload);
+      });
+
+      const payload = {
+        succeeded: 8,
+        failed: 2,
+        skipped: 0,
+        cancelled: false,
+      };
+      await emit("batch-finished", payload);
+      expect(received).toEqual([payload]);
+
+      await unlisten();
+
+      await emit("batch-finished", {
+        succeeded: 0,
+        failed: 0,
+        skipped: 10,
+        cancelled: true,
+      });
+      expect(received).toHaveLength(1);
+    });
+  });
 });

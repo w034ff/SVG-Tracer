@@ -64,4 +64,33 @@ export const ja = {
   originalPreviewAria: "元画像のプレビュー",
   svgPreviewAria: "SVG のプレビュー",
   unitSeconds: "秒",
+
+  batchInputFolder: "入力フォルダ",
+  batchOutputFolder: "出力フォルダ",
+  selectFolder: "フォルダを選択",
+  noFolderSelected: "未選択",
+  batchInputSummary:
+    "対象 {count} 件 · 対象外 {ignored} 件（非対応の形式・サブフォルダ）",
+  batchTableHeaderName: "ファイル名",
+  batchTableHeaderOutput: "出力ファイル名",
+  batchTableHeaderStatus: "状態",
+  batchStatusWait: "待機",
+  batchStatusRunning: "変換中",
+  batchStatusOk: "✓ 完了",
+  batchStatusNg: "✕ 失敗",
+  batchStatusUnprocessed: "未処理",
+  batchProgressConverting: "{name} ほか {count} 件を変換中",
+  batchProgressConvertingSingle: "{name} を変換中",
+  batchProgressComplete: "完了",
+  batchSummaryCompleted:
+    "変換が完了しました：成功 {succeeded} 件 · 失敗 {failed} 件",
+  batchSummaryCancelled:
+    "変換を中止しました：成功 {succeeded} 件 · 失敗 {failed} 件 · 未処理 {skipped} 件",
+  batchNoticeSameName:
+    "同名の SVG がある場合は「名前 (1).svg」のように番号を付けて保存します",
+  batchStart: "変換を開始",
+  batchCancel: "キャンセル",
+  batchCancelling: "キャンセル中…",
+  batchDisabledDuringConversion: "変換中は設定を変更できません",
+  batchProgressBarAria: "進捗",
 };

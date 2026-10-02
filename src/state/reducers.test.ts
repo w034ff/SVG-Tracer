@@ -242,5 +242,151 @@ describe("reducers", () => {
       expect(finished.status).toBe("finished");
       expect(finished.finished?.cancelled).toBe(true);
     });
+
+    it("populates items from inputDir targets with wait status", () => {
+      const initial = createInitialBatchConversionState();
+      const withInput = batchConversionReducer(initial, {
+        type: "SET_INPUT_DIR",
+        inputDir: {
+          dirLabel: "test_folder",
+          targets: ["a.png", "b.jpg"],
+          ignoredCount: 2,
+        },
+      });
+
+      expect(withInput.inputDir?.dirLabel).toBe("test_folder");
+      expect(withInput.items).toHaveLength(2);
+      expect(withInput.items[0]).toEqual({
+        name: "a.png",
+        outputName: null,
+        status: "wait",
+        error: null,
+      });
+      expect(withInput.items[1]).toEqual({
+        name: "b.jpg",
+        outputName: null,
+        status: "wait",
+        error: null,
+      });
+    });
+
+    it("updates progress and marks the current item as running", () => {
+      const initial = batchConversionReducer(
+        createInitialBatchConversionState(),
+        {
+          type: "SET_INPUT_DIR",
+          inputDir: {
+            dirLabel: "dir",
+            targets: ["a.png", "b.png"],
+            ignoredCount: 0,
+          },
+        },
+      );
+
+      const updated = batchConversionReducer(initial, {
+        type: "UPDATE_PROGRESS",
+        progress: { done: 0, total: 2, current: "a.png" },
+      });
+
+      expect(updated.progress?.current).toBe("a.png");
+      expect(updated.items[0]?.status).toBe("running");
+      expect(updated.items[1]?.status).toBe("wait");
+    });
+
+    it("adds a new item row if batch-item arrives for a file not in targets", () => {
+      const initial = batchConversionReducer(
+        createInitialBatchConversionState(),
+        {
+          type: "SET_INPUT_DIR",
+          inputDir: {
+            dirLabel: "dir",
+            targets: ["a.png"],
+            ignoredCount: 0,
+          },
+        },
+      );
+
+      const updated = batchConversionReducer(initial, {
+        type: "ITEM_PROCESSED",
+        item: {
+          name: "extra.png",
+          status: "ok",
+          outputName: "extra.svg",
+          error: null,
+        },
+      });
+
+      expect(updated.items).toHaveLength(2);
+      expect(updated.items[1]).toEqual({
+        name: "extra.png",
+        status: "ok",
+        outputName: "extra.svg",
+        error: null,
+      });
+    });
+
+    it("marks unprocessed items when finished with cancelled: true", () => {
+      const initial = batchConversionReducer(
+        createInitialBatchConversionState(),
+        {
+          type: "SET_INPUT_DIR",
+          inputDir: {
+            dirLabel: "dir",
+            targets: ["done.png", "running.png", "waiting.png"],
+            ignoredCount: 0,
+          },
+        },
+      );
+
+      const withDone = batchConversionReducer(initial, {
+        type: "ITEM_PROCESSED",
+        item: {
+          name: "done.png",
+          status: "ok",
+          outputName: "done.svg",
+          error: null,
+        },
+      });
+
+      const withRunning = batchConversionReducer(withDone, {
+        type: "UPDATE_PROGRESS",
+        progress: { done: 1, total: 3, current: "running.png" },
+      });
+
+      const cancelled = batchConversionReducer(withRunning, {
+        type: "FINISH_BATCH",
+        finished: {
+          succeeded: 1,
+          failed: 0,
+          skipped: 2,
+          cancelled: true,
+        },
+      });
+
+      expect(cancelled.items[0]?.status).toBe("ok");
+      expect(cancelled.items[1]?.status).toBe("unprocessed");
+      expect(cancelled.items[2]?.status).toBe("unprocessed");
+    });
+
+    it("resets status to idle on START_BATCH_FAILED and sets error", () => {
+      const initial = batchConversionReducer(
+        createInitialBatchConversionState(),
+        {
+          type: "START_BATCH",
+        },
+      );
+      expect(initial.status).toBe("running");
+
+      const failed = batchConversionReducer(initial, {
+        type: "START_BATCH_FAILED",
+        error: { code: "UnknownHandle", detail: "directory gone" },
+      });
+
+      expect(failed.status).toBe("idle");
+      expect(failed.error).toEqual({
+        code: "UnknownHandle",
+        detail: "directory gone",
+      });
+    });
   });
 });

@@ -66,4 +66,33 @@ export const en: TranslationKeys = {
   originalPreviewAria: "Original preview",
   svgPreviewAria: "SVG preview",
   unitSeconds: "s",
+
+  batchInputFolder: "Input folder",
+  batchOutputFolder: "Output folder",
+  selectFolder: "Select folder",
+  noFolderSelected: "Not selected",
+  batchInputSummary:
+    "{count} targets · {ignored} ignored (unsupported formats, subfolders)",
+  batchTableHeaderName: "File name",
+  batchTableHeaderOutput: "Output file name",
+  batchTableHeaderStatus: "Status",
+  batchStatusWait: "Pending",
+  batchStatusRunning: "Converting",
+  batchStatusOk: "✓ Done",
+  batchStatusNg: "✕ Failed",
+  batchStatusUnprocessed: "Unprocessed",
+  batchProgressConverting: "Converting {name} and {count} other(s)",
+  batchProgressConvertingSingle: "Converting {name}",
+  batchProgressComplete: "Completed",
+  batchSummaryCompleted:
+    "Conversion completed: {succeeded} succeeded · {failed} failed",
+  batchSummaryCancelled:
+    "Conversion cancelled: {succeeded} succeeded · {failed} failed · {skipped} unprocessed",
+  batchNoticeSameName:
+    'If an SVG with the same name exists, it will be saved with a numbered suffix like "name (1).svg"',
+  batchStart: "Start conversion",
+  batchCancel: "Cancel",
+  batchCancelling: "Cancelling...",
+  batchDisabledDuringConversion: "Settings cannot be changed during conversion",
+  batchProgressBarAria: "Progress",
 };

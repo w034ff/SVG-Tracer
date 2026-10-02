@@ -9,25 +9,36 @@ import type {
 
 export type BatchStatus = "idle" | "running" | "cancelling" | "finished";
 
+export type BatchItemRowStatus =
+  "wait" | "running" | "ok" | "failed" | "unprocessed";
+
+export type BatchItemRow = {
+  readonly name: string;
+  readonly outputName: string | null;
+  readonly status: BatchItemRowStatus;
+  readonly error: IpcError | null;
+};
+
 export type BatchConversionState = {
-  status: BatchStatus;
-  inputDir: PickBatchInputResult | null;
-  outputDir: PickBatchOutputResult | null;
-  progress: BatchProgressPayload | null;
-  items: readonly BatchItemPayload[];
-  finished: BatchFinishedPayload | null;
-  error: IpcError | null;
+  readonly status: BatchStatus;
+  readonly inputDir: PickBatchInputResult | null;
+  readonly outputDir: PickBatchOutputResult | null;
+  readonly progress: BatchProgressPayload | null;
+  readonly items: readonly BatchItemRow[];
+  readonly finished: BatchFinishedPayload | null;
+  readonly error: IpcError | null;
 };
 
 export type BatchConversionAction =
   | { type: "SET_INPUT_DIR"; inputDir: PickBatchInputResult | null }
   | { type: "SET_OUTPUT_DIR"; outputDir: PickBatchOutputResult | null }
   | { type: "START_BATCH" }
+  | { type: "START_BATCH_FAILED"; error: IpcError }
   | { type: "UPDATE_PROGRESS"; progress: BatchProgressPayload }
   | { type: "ITEM_PROCESSED"; item: BatchItemPayload }
   | { type: "CANCEL_BATCH" }
   | { type: "FINISH_BATCH"; finished: BatchFinishedPayload }
-  | { type: "SET_ERROR"; error: IpcError }
+  | { type: "CLEAR_ERROR" }
   | { type: "RESET" };
 
 export function createInitialBatchConversionState(): BatchConversionState {
@@ -47,56 +58,155 @@ export function batchConversionReducer(
   action: BatchConversionAction,
 ): BatchConversionState {
   switch (action.type) {
-    case "SET_INPUT_DIR":
+    case "SET_INPUT_DIR": {
+      const items: BatchItemRow[] = action.inputDir
+        ? action.inputDir.targets.map((name) => ({
+            name,
+            outputName: null,
+            status: "wait",
+            error: null,
+          }))
+        : [];
       return {
         ...state,
         inputDir: action.inputDir,
-        items: [],
+        items,
         progress: null,
         finished: null,
+        error: null,
       };
+    }
+
     case "SET_OUTPUT_DIR":
       return {
         ...state,
         outputDir: action.outputDir,
       };
-    case "START_BATCH":
+
+    case "START_BATCH": {
+      const items: BatchItemRow[] = state.items.map((item) => ({
+        ...item,
+        outputName: null,
+        status: "wait",
+        error: null,
+      }));
       return {
         ...state,
         status: "running",
-        error: null,
-        items: [],
+        items,
+        progress: null,
         finished: null,
+        error: null,
       };
-    case "UPDATE_PROGRESS":
-      return {
-        ...state,
-        progress: action.progress,
-      };
-    case "ITEM_PROCESSED":
-      return {
-        ...state,
-        items: [...state.items, action.item],
-      };
-    case "CANCEL_BATCH":
-      return {
-        ...state,
-        status: "cancelling",
-      };
-    case "FINISH_BATCH":
-      return {
-        ...state,
-        status: "finished",
-        finished: action.finished,
-      };
-    case "SET_ERROR":
+    }
+
+    case "START_BATCH_FAILED":
       return {
         ...state,
         status: "idle",
         error: action.error,
       };
+
+    case "UPDATE_PROGRESS": {
+      const { progress } = action;
+      let nextItems = state.items;
+      if (progress.current !== null && progress.current.length > 0) {
+        const currentName = progress.current;
+        const exists = nextItems.some((item) => item.name === currentName);
+        if (exists) {
+          nextItems = nextItems.map((item) => {
+            if (item.name === currentName && item.status === "wait") {
+              return { ...item, status: "running" };
+            }
+            return item;
+          });
+        } else {
+          nextItems = [
+            ...nextItems,
+            {
+              name: currentName,
+              outputName: null,
+              status: "running",
+              error: null,
+            },
+          ];
+        }
+      }
+      return {
+        ...state,
+        progress,
+        items: nextItems,
+      };
+    }
+
+    case "ITEM_PROCESSED": {
+      const { item } = action;
+      const targetStatus: BatchItemRowStatus =
+        item.status === "ok" ? "ok" : "failed";
+      const exists = state.items.some(
+        (existing) => existing.name === item.name,
+      );
+      const nextItems = exists
+        ? state.items.map((existing) => {
+            if (existing.name === item.name) {
+              return {
+                ...existing,
+                status: targetStatus,
+                outputName: item.outputName ?? null,
+                error: item.error ?? null,
+              };
+            }
+            return existing;
+          })
+        : [
+            ...state.items,
+            {
+              name: item.name,
+              status: targetStatus,
+              outputName: item.outputName ?? null,
+              error: item.error ?? null,
+            },
+          ];
+      return {
+        ...state,
+        items: nextItems,
+      };
+    }
+
+    case "CANCEL_BATCH":
+      return {
+        ...state,
+        status: "cancelling",
+      };
+
+    case "FINISH_BATCH": {
+      const { finished } = action;
+      let nextItems = state.items;
+      if (finished.cancelled) {
+        nextItems = nextItems.map((item) => {
+          if (item.status !== "ok" && item.status !== "failed") {
+            return { ...item, status: "unprocessed" };
+          }
+          return item;
+        });
+      }
+      return {
+        ...state,
+        status: "finished",
+        finished,
+        items: nextItems,
+      };
+    }
+
+    case "CLEAR_ERROR":
+      return {
+        ...state,
+        error: null,
+      };
+
     case "RESET":
       return createInitialBatchConversionState();
+
     default:
       return state;
   }

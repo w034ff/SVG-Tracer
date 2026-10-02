@@ -3,6 +3,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import type { IpcError, ParamSpec, TraceParams } from "../../ipc";
 import { LanguageProvider, ParamsProvider } from "../../state";
+import { BatchConversionContext } from "../../state/contexts";
 import { ParamsPanel } from "./ParamsPanel";
 
 const COLOR_LOGO_PARAMS: TraceParams = {
@@ -264,5 +265,43 @@ describe("ParamsPanel", () => {
     fireEvent.click(advancedButton);
     expect(advancedButton).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByLabelText(/座標の精度/)).not.toBeInTheDocument();
+  });
+
+  it("disables all controls and displays notice when batch conversion is active", () => {
+    render(
+      <LanguageProvider initialLanguage="ja">
+        <ParamsProvider initialSpec={TEST_SPEC}>
+          <BatchConversionContext.Provider
+            value={{
+              state: {
+                status: "running",
+                inputDir: null,
+                outputDir: null,
+                progress: null,
+                items: [],
+                finished: null,
+                error: null,
+              },
+              dispatch: () => {},
+            }}
+          >
+            <ParamsPanel />
+          </BatchConversionContext.Provider>
+        </ParamsProvider>
+      </LanguageProvider>,
+    );
+
+    expect(
+      screen.getByText("変換中は設定を変更できません"),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("プリセット")).toBeDisabled();
+    expect(screen.getByLabelText(/色の精度/)).toBeDisabled();
+    expect(screen.getByLabelText(/ノイズ除去/)).toBeDisabled();
+    expect(screen.getByLabelText(/角の判定/)).toBeDisabled();
+    expect(screen.getByRole("button", { name: "カラー" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "白黒" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "曲線" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "多角形" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /詳細設定/ })).toBeDisabled();
   });
 });

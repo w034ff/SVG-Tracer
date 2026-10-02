@@ -396,3 +396,236 @@ select {
   font-size: 12px;
   font-weight: 500;
 }
+
+.params-disabled-notice {
+  padding: 8px 10px;
+  border-radius: var(--radius-control);
+  background: var(--color-notice-bg);
+  color: var(--color-notice-fg);
+}
+
+.params-body {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.params-body-disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.batch-view {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+
+.batch-content {
+  flex-grow: 1;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+}
+
+.batch-folders {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.batch-folder-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.batch-folder-label {
+  width: 96px;
+  font-weight: 600;
+  flex-shrink: 0;
+  color: var(--color-fg);
+}
+
+.batch-path {
+  flex-grow: 1;
+  height: var(--control-height);
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-bg-surface-subtle);
+  font-family: var(--font-mono);
+  color: var(--color-fg);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.batch-folder-summary {
+  padding-left: 108px;
+  color: var(--color-fg-muted);
+}
+
+.batch-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  background: var(--color-summary-bg);
+  border: 1px solid var(--color-summary-border);
+  border-radius: 8px;
+}
+
+.batch-summary-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-fg);
+}
+
+.batch-failure-item {
+  display: flex;
+  gap: 8px;
+}
+
+.batch-failure-name {
+  font-weight: 600;
+  width: 120px;
+  flex-shrink: 0;
+  color: var(--color-fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.batch-failure-reason {
+  color: var(--color-fg);
+}
+
+.batch-table-container {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.batch-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 120px;
+  gap: 12px;
+  align-items: center;
+  height: 36px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--color-table-border);
+  flex-shrink: 0;
+}
+
+.batch-table-header {
+  background: var(--color-bg-surface-subtle);
+  font-weight: 600;
+  color: var(--color-fg-muted);
+}
+
+.batch-table-body {
+  flex-grow: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.batch-cell-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-fg);
+}
+
+.batch-cell-output {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.pill-ok {
+  background: var(--color-status-ok-bg);
+  color: var(--color-status-ok-fg);
+}
+
+.pill-run {
+  background: var(--color-status-run-bg);
+  color: var(--color-status-run-fg);
+}
+
+.pill-wait {
+  background: var(--color-status-wait-bg);
+  color: var(--color-status-wait-fg);
+}
+
+.pill-ng {
+  background: var(--color-status-ng-bg);
+  color: var(--color-status-ng-fg);
+}
+
+.batch-progress-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.batch-progress-text {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--color-fg);
+}
+
+.batch-progressbar {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--color-progress-track);
+  overflow: hidden;
+}
+
+.batch-progressbar-fill {
+  height: 100%;
+  background: var(--color-primary);
+  transition: width 0.2s ease-in-out;
+}
+
+.batch-footer {
+  height: 56px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  background: var(--color-bg-surface);
+  border-top: 1px solid var(--color-border);
+}
+
+.batch-notice {
+  color: var(--color-fg-muted);
+}
