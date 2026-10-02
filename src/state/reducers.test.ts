@@ -7,6 +7,7 @@ import {
 import { languageReducer } from "./language";
 import { createInitialParamsState, paramsReducer } from "./params";
 import {
+  calculateZoomPan,
   createInitialSingleConversionState,
   singleConversionReducer,
 } from "./singleConversion";
@@ -221,6 +222,124 @@ describe("reducers", () => {
         pan: { x: 50, y: -30 },
       });
       expect(panned.pan).toEqual({ x: 50, y: -30 });
+    });
+
+    describe("calculateZoomPan pure function", () => {
+      it("keeps the point under anchor at the same screen position before and after zoom", () => {
+        const currentZoom = 1.0;
+        const currentPan = { x: 100, y: -50 };
+        const anchor = { x: 80, y: 120 };
+
+        // Point on image (unscaled coordinates from image center) under anchor before zoom:
+        // p = pan + z * I  =>  I = (p - pan) / z
+        const imagePointX = (anchor.x - currentPan.x) / currentZoom;
+        const imagePointY = (anchor.y - currentPan.y) / currentZoom;
+
+        // 1. Zoom in (1.0 -> 2.0)
+        const zoomedIn = calculateZoomPan(currentZoom, 2.0, currentPan, anchor);
+        expect(zoomedIn.zoom).toBe(2.0);
+        const screenAfterZoomInX = zoomedIn.pan.x + zoomedIn.zoom * imagePointX;
+        const screenAfterZoomInY = zoomedIn.pan.y + zoomedIn.zoom * imagePointY;
+        expect(screenAfterZoomInX).toBeCloseTo(anchor.x, 5);
+        expect(screenAfterZoomInY).toBeCloseTo(anchor.y, 5);
+
+        // 2. Zoom out (1.0 -> 0.5)
+        const zoomedOut = calculateZoomPan(
+          currentZoom,
+          0.5,
+          currentPan,
+          anchor,
+        );
+        expect(zoomedOut.zoom).toBe(0.5);
+        const screenAfterZoomOutX =
+          zoomedOut.pan.x + zoomedOut.zoom * imagePointX;
+        const screenAfterZoomOutY =
+          zoomedOut.pan.y + zoomedOut.zoom * imagePointY;
+        expect(screenAfterZoomOutX).toBeCloseTo(anchor.x, 5);
+        expect(screenAfterZoomOutY).toBeCloseTo(anchor.y, 5);
+      });
+
+      it("scales pan by (z' / z) when p = 0 (pane center)", () => {
+        const currentZoom = 1.0;
+        const targetZoom = 1.5;
+        const currentPan = { x: 60, y: -40 };
+
+        // Explicit p = { x: 0, y: 0 }
+        const withExplicitZero = calculateZoomPan(
+          currentZoom,
+          targetZoom,
+          currentPan,
+          { x: 0, y: 0 },
+        );
+        expect(withExplicitZero.zoom).toBe(1.5);
+        expect(withExplicitZero.pan.x).toBeCloseTo(60 * 1.5, 5);
+        expect(withExplicitZero.pan.y).toBeCloseTo(-40 * 1.5, 5);
+
+        // Default anchor (omitted) should behave identically to p = 0
+        const withDefaultAnchor = calculateZoomPan(
+          currentZoom,
+          targetZoom,
+          currentPan,
+        );
+        expect(withDefaultAnchor.zoom).toBe(1.5);
+        expect(withDefaultAnchor.pan.x).toBeCloseTo(60 * 1.5, 5);
+        expect(withDefaultAnchor.pan.y).toBeCloseTo(-40 * 1.5, 5);
+      });
+
+      it("does not change pan when zoom reaches upper or lower bound and cannot change", () => {
+        const currentPan = { x: 50, y: -30 };
+        const anchor = { x: 120, y: -80 };
+
+        // At MAX_ZOOM (16.0), attempting to zoom in further
+        const atMax = calculateZoomPan(16.0, 20.0, currentPan, anchor);
+        expect(atMax.zoom).toBe(16.0);
+        expect(atMax.pan).toEqual(currentPan);
+
+        // At MIN_ZOOM (0.1), attempting to zoom out further
+        const atMin = calculateZoomPan(0.1, 0.05, currentPan, anchor);
+        expect(atMin.zoom).toBe(0.1);
+        expect(atMin.pan).toEqual(currentPan);
+      });
+    });
+
+    describe("anchored zoom in singleConversionReducer", () => {
+      it("updates zoom and pan using anchor on ZOOM_BY", () => {
+        const initial = {
+          ...createInitialSingleConversionState(),
+          zoom: 1.0,
+          pan: { x: 0, y: 0 },
+        };
+        const anchor = { x: 80, y: 60 };
+
+        const updated = singleConversionReducer(initial, {
+          type: "ZOOM_BY",
+          factor: 1.25,
+          anchor,
+        });
+
+        // pan' = p - (p - pan) * (z' / z)
+        // pan'.x = 80 - (80 - 0) * 1.25 = 80 - 100 = -20
+        // pan'.y = 60 - (60 - 0) * 1.25 = 60 - 75 = -15
+        expect(updated.zoom).toBe(1.25);
+        expect(updated.pan).toEqual({ x: -20, y: -15 });
+      });
+
+      it("scales pan by factor when anchor is omitted (p = 0)", () => {
+        const initial = {
+          ...createInitialSingleConversionState(),
+          zoom: 1.0,
+          pan: { x: 40, y: 60 },
+        };
+
+        const updated = singleConversionReducer(initial, {
+          type: "ZOOM_BY",
+          factor: 1.25,
+        });
+
+        // pan' = pan * 1.25 = { x: 50, y: 75 }
+        expect(updated.zoom).toBe(1.25);
+        expect(updated.pan).toEqual({ x: 50, y: 75 });
+      });
     });
   });
 
