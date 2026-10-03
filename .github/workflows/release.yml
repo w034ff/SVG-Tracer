@@ -95,6 +95,13 @@ jobs:
       - name: License Check
         run: npm run licenses:check
 
+      # A release must not ship a dependency with a known vulnerability, even if
+      # the weekly audit has not run since the advisory was published.
+      - name: Advisory Check
+        run: |
+          cargo deny check advisories
+          npm audit --omit=dev
+
       - name: Create draft release
         shell: bash
         env:
