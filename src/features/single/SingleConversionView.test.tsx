@@ -767,6 +767,254 @@ describe("SingleConversionView", () => {
     });
   });
 
+  describe("Error banner overlay and load_preview failure handling", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("does not call convert when load_preview returns an error even after debounce timer expires", async () => {
+      let convertCalls = 0;
+      mockIPC(
+        (cmd) => {
+          if (cmd === "pick_image") {
+            return SAMPLE_IMAGE_A;
+          }
+          if (cmd === "load_preview") {
+            const err: IpcError = {
+              code: "DecodeFailed",
+              detail: "corrupt image chunk",
+            };
+            return Promise.reject(err);
+          }
+          if (cmd === "convert") {
+            convertCalls += 1;
+            return SAMPLE_RESULT;
+          }
+          return null;
+        },
+        { shouldMockEvents: true },
+      );
+
+      function TestParamModifier() {
+        const { dispatch } = useParams();
+        return (
+          <div>
+            <SingleConversionView />
+            <button
+              type="button"
+              data-testid="param-mod"
+              onClick={() => {
+                dispatch({
+                  type: "SET_PARAM",
+                  key: "colorPrecision",
+                  value: 8,
+                });
+              }}
+            >
+              Modify Param
+            </button>
+          </div>
+        );
+      }
+
+      render(
+        <LanguageProvider initialLanguage="ja">
+          <ParamsProvider initialSpec={TEST_SPEC}>
+            <SingleConversionProvider>
+              <TestParamModifier />
+            </SingleConversionProvider>
+          </ParamsProvider>
+        </LanguageProvider>,
+      );
+
+      // Open Image A whose load_preview will fail
+      fireEvent.click(screen.getByRole("button", { name: "画像を開く" }));
+
+      // Wait for load_preview rejection to settle
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      // Error banner should be displayed
+      expect(
+        screen.getByText("画像のデコードに失敗しました: corrupt image chunk"),
+      ).toBeInTheDocument();
+
+      // Wait much longer than the 300ms debounce
+      await act(async () => {
+        vi.advanceTimersByTime(1000);
+      });
+
+      // convert must not have been called even once
+      expect(convertCalls).toBe(0);
+
+      // Changing parameters should also never trigger convert on this broken image
+      act(() => {
+        fireEvent.click(screen.getByTestId("param-mod"));
+      });
+      await act(async () => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(convertCalls).toBe(0);
+    });
+
+    it("calls convert normally when selecting another image after load_preview failure", async () => {
+      let currentImage: PickedImage = SAMPLE_IMAGE_A;
+      const convertCalls: Array<{ id: string; seq: number }> = [];
+
+      mockIPC(
+        (cmd, args) => {
+          if (cmd === "pick_image") {
+            return currentImage;
+          }
+          if (cmd === "load_preview") {
+            if (isRecord(args) && args["id"] === SAMPLE_IMAGE_A.id) {
+              const err: IpcError = {
+                code: "DecodeFailed",
+                detail: "corrupt",
+              };
+              return Promise.reject(err);
+            }
+            return new Uint8Array([137, 80, 78, 71]).buffer;
+          }
+          if (cmd === "convert") {
+            if (
+              isRecord(args) &&
+              typeof args["id"] === "string" &&
+              typeof args["seq"] === "number"
+            ) {
+              convertCalls.push({ id: args["id"], seq: args["seq"] });
+            }
+            return SAMPLE_RESULT;
+          }
+          return null;
+        },
+        { shouldMockEvents: true },
+      );
+
+      renderSingleView();
+
+      // 1. Pick Image A (corrupt)
+      currentImage = SAMPLE_IMAGE_A;
+      fireEvent.click(screen.getByRole("button", { name: "画像を開く" }));
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      // Error banner appears, convert is not called
+      expect(
+        screen.getByText("画像のデコードに失敗しました: corrupt"),
+      ).toBeInTheDocument();
+
+      await act(async () => {
+        vi.advanceTimersByTime(500);
+      });
+      expect(convertCalls).toHaveLength(0);
+
+      // 2. Pick Image B (valid)
+      currentImage = SAMPLE_IMAGE_B;
+      fireEvent.click(screen.getByRole("button", { name: "画像を開く" }));
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(screen.getByText("icon_mono.png")).toBeInTheDocument();
+
+      // Complete 300ms debounce
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      // convert must now be called with Image B's handle
+      expect(convertCalls).toHaveLength(1);
+      expect(convertCalls[0]?.id).toBe("img-handle-b");
+      // And stats displayed
+      expect(screen.getByText("38")).toBeInTheDocument();
+    });
+
+    it("places toolbar before error banner in DOM order and banner has single-error-banner overlay class", async () => {
+      mockIPC(
+        (cmd) => {
+          if (cmd === "pick_image") {
+            return SAMPLE_IMAGE_A;
+          }
+          if (cmd === "load_preview") {
+            const err: IpcError = {
+              code: "UnsupportedFormat",
+              detail: null,
+            };
+            return Promise.reject(err);
+          }
+          return null;
+        },
+        { shouldMockEvents: true },
+      );
+
+      renderSingleView();
+
+      fireEvent.click(screen.getByRole("button", { name: "画像を開く" }));
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      const toolbar = document.querySelector(".single-toolbar");
+      const banner = document.querySelector(".single-error-banner");
+
+      expect(toolbar).toBeInTheDocument();
+      expect(banner).toBeInTheDocument();
+
+      if (!toolbar || !banner) {
+        throw new Error("Toolbar or banner not found in DOM");
+      }
+
+      // Banner has both .error-banner (visual) and .single-error-banner (positioning)
+      expect(banner).toHaveClass("error-banner");
+      expect(banner).toHaveClass("single-error-banner");
+
+      // Toolbar is at a position before banner in DOM order
+      const position = toolbar.compareDocumentPosition(banner);
+      expect(Boolean(position & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+    });
+
+    it("applies single-error-banner class to error banner in empty state", async () => {
+      mockIPC(
+        (cmd) => {
+          if (cmd === "pick_image") {
+            const err: IpcError = {
+              code: "ReadFailed",
+              detail: "permission denied",
+            };
+            return Promise.reject(err);
+          }
+          return null;
+        },
+        { shouldMockEvents: true },
+      );
+
+      renderSingleView();
+
+      fireEvent.click(screen.getByRole("button", { name: "画像を開く" }));
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      const banner = document.querySelector(".single-error-banner");
+      expect(banner).toBeInTheDocument();
+      expect(banner).toHaveClass("error-banner");
+      expect(banner).toHaveClass("single-error-banner");
+      expect(
+        screen.getByText("ファイルの読み込みに失敗しました: permission denied"),
+      ).toBeInTheDocument();
+    });
+  });
+
   describe("Error code mapping and detail display", () => {
     const errorCases: Array<{
       code: IpcError["code"];

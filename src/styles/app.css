@@ -258,6 +258,7 @@ select {
   flex-direction: column;
   min-height: 0;
   min-width: 0;
+  position: relative;
 }
 
 .single-toolbar {
@@ -395,6 +396,18 @@ select {
   gap: 8px;
   font-size: 12px;
   font-weight: 500;
+}
+
+.single-error-banner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+}
+
+.single-toolbar + .single-error-banner {
+  top: 44px;
 }
 
 .params-disabled-notice {

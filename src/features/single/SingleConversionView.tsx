@@ -36,6 +36,8 @@ export function SingleConversionView(): ReactElement {
   const svgUrlRef = useRef<string | null>(null);
   const currentImageIdRef = useRef<string | null>(null);
   const prevImageIdRef = useRef<string | null>(null);
+  const previewPromiseRef = useRef<Promise<void> | null>(null);
+  const previewFailedRef = useRef<boolean>(false);
 
   const revokePreviewUrl = useCallback(() => {
     if (previewUrlRef.current) {
@@ -70,6 +72,8 @@ export function SingleConversionView(): ReactElement {
 
     if (prevImageIdRef.current !== currentId) {
       seqRef.current += 1;
+      previewFailedRef.current = false;
+      previewPromiseRef.current = null;
       revokeAllUrls();
       prevImageIdRef.current = currentId;
     }
@@ -83,7 +87,7 @@ export function SingleConversionView(): ReactElement {
     }
 
     let isCurrent = true;
-    loadPreview(imageId)
+    const loadPromise = loadPreview(imageId)
       .then((bytes) => {
         if (!isCurrent || imageId !== currentImageIdRef.current) {
           return;
@@ -98,9 +102,12 @@ export function SingleConversionView(): ReactElement {
         if (!isCurrent || imageId !== currentImageIdRef.current) {
           return;
         }
+        previewFailedRef.current = true;
         const ipcError = normalizeIpcError(error);
-        dispatch({ type: "SET_ERROR", error: ipcError });
+        dispatch({ type: "PREVIEW_ERROR", error: ipcError });
       });
+
+    previewPromiseRef.current = loadPromise;
 
     return () => {
       isCurrent = false;
@@ -111,11 +118,34 @@ export function SingleConversionView(): ReactElement {
   useEffect(() => {
     const imageId = state.image?.id;
     const params = paramsState.params;
-    if (!imageId || !params) {
+    if (
+      !imageId ||
+      !params ||
+      state.previewFailed ||
+      previewFailedRef.current
+    ) {
       return;
     }
 
-    const timer = setTimeout(() => {
+    const timer = setTimeout(async () => {
+      if (previewFailedRef.current || state.previewFailed) {
+        return;
+      }
+      if (previewPromiseRef.current) {
+        try {
+          await previewPromiseRef.current;
+        } catch {
+          return;
+        }
+      }
+      if (
+        previewFailedRef.current ||
+        state.previewFailed ||
+        imageId !== currentImageIdRef.current
+      ) {
+        return;
+      }
+
       seqRef.current += 1;
       const thisSeq = seqRef.current;
       dispatch({ type: "START_CONVERT" });
@@ -157,7 +187,13 @@ export function SingleConversionView(): ReactElement {
     return () => {
       clearTimeout(timer);
     };
-  }, [state.image?.id, paramsState.params, dispatch, revokeSvgUrl]);
+  }, [
+    state.image?.id,
+    state.previewFailed,
+    paramsState.params,
+    dispatch,
+    revokeSvgUrl,
+  ]);
 
   // Shared dragging (Pan) logic
   const isDraggingRef = useRef(false);
@@ -353,7 +389,7 @@ export function SingleConversionView(): ReactElement {
     return (
       <div className="single-view">
         {state.error && state.error.code !== "Superseded" && (
-          <div className="error-banner">
+          <div className="error-banner single-error-banner">
             <span>{getIpcErrorMessage(state.error, t)}</span>
           </div>
         )}
@@ -408,12 +444,6 @@ export function SingleConversionView(): ReactElement {
 
   return (
     <div className="single-view">
-      {state.error && state.error.code !== "Superseded" && (
-        <div className="error-banner">
-          <span>{getIpcErrorMessage(state.error, t)}</span>
-        </div>
-      )}
-
       {/* Toolbar */}
       <div className="single-toolbar">
         <span className="single-filename">{state.image.name}</span>
@@ -473,6 +503,12 @@ export function SingleConversionView(): ReactElement {
           {t.zoom100}
         </button>
       </div>
+
+      {state.error && state.error.code !== "Superseded" && (
+        <div className="error-banner single-error-banner">
+          <span>{getIpcErrorMessage(state.error, t)}</span>
+        </div>
+      )}
 
       {/* Dual preview panes */}
       <div className="single-preview-grid">
