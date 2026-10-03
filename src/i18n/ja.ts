@@ -10,7 +10,7 @@ export const ja = {
 
   preset: "プリセット",
   presetColorLogo: "ロゴ（カラー）",
-  presetColorIcon: "アイコン（少色）",
+  presetColorIcon: "イラスト（色数少なめ）",
   presetBinary: "白黒",
   presetCustom: "カスタム",
 
@@ -31,18 +31,19 @@ export const ja = {
   hierarchical: "重ね方",
   hierarchicalStacked: "重ねる",
   hierarchicalCutout: "切り抜く",
-  lengthThreshold: "線分の長さ",
+  lengthThreshold: "線分の最小長",
   spliceThreshold: "曲線の分割",
   pathPrecision: "座標の精度",
 
   errorUnsupportedFormat: "非対応の画像形式です",
-  errorDecodeFailed: "画像のデコードに失敗しました",
-  errorTooLarge: "画像サイズが上限を超過しています",
+  errorDecodeFailed:
+    "画像を読み込めませんでした。ファイルが壊れている可能性があります。",
+  errorTooLarge: "画像が大きすぎます（上限 {detail} ピクセル）",
   errorReadFailed: "ファイルの読み込みに失敗しました",
   errorWriteFailed: "ファイルの書き込みに失敗しました",
-  errorTraceFailed: "ベクター変換に失敗しました",
+  errorTraceFailed: "SVG への変換に失敗しました",
   errorBatchRunning: "一括変換が既に実行中です",
-  errorUnknownHandle: "画像ハンドルが見つかりません",
+  errorUnknownHandle: "画像をもう一度開いてください",
   errorInvalidParams: "無効なパラメータです",
   errorSuperseded: "新しい変換要求に置き換えられました",
   paramSpecLoadFailed: "パラメータ設定の読み込みに失敗しました",
@@ -86,7 +87,7 @@ export const ja = {
   batchSummaryCompleted:
     "変換が完了しました：成功 {succeeded} 件 · 失敗 {failed} 件",
   batchSummaryCancelled:
-    "変換を中止しました：成功 {succeeded} 件 · 失敗 {failed} 件 · 未処理 {skipped} 件",
+    "変換をキャンセルしました：成功 {succeeded} 件 · 失敗 {failed} 件 · 未処理 {skipped} 件",
   batchNoticeSameName:
     "同名の SVG がある場合は「名前 (1).svg」のように番号を付けて保存します",
   batchStart: "変換を開始",
@@ -97,7 +98,7 @@ export const ja = {
 
   aboutTitle: "このアプリについて",
   aboutVersion: "バージョン {version}",
-  aboutAppLicense: "本アプリのライセンス (MIT)",
+  aboutAppLicense: "このアプリのライセンス（MIT）",
   aboutThirdPartyLicenses: "第三者ライセンス一覧",
   aboutShowThirdPartyLicenses: "第三者ライセンスを表示",
   aboutHideThirdPartyLicenses: "第三者ライセンスを隠す",

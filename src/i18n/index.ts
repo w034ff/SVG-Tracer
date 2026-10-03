@@ -71,7 +71,8 @@ const ERROR_MESSAGE_KEYS = {
 
 /**
  * Returns localized error message for an IpcError per design §5.5.
- * Appends detail at the end if present.
+ * If the message contains `{detail}`, interpolates the detail;
+ * otherwise appends `: <detail>` if detail is present.
  */
 export function getIpcErrorMessage(
   error: IpcError,
@@ -80,6 +81,9 @@ export function getIpcErrorMessage(
   const key = ERROR_MESSAGE_KEYS[error.code];
   const baseMessage = t[key];
   if (error.detail !== null && error.detail.length > 0) {
+    if (baseMessage.includes("{detail}")) {
+      return formatMessage(baseMessage, { detail: error.detail });
+    }
     return `${baseMessage}: ${error.detail}`;
   }
   return baseMessage;

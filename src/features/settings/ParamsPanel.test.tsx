@@ -152,7 +152,7 @@ describe("ParamsPanel", () => {
     const advancedButton = screen.getByRole("button", { name: /詳細設定/ });
     fireEvent.click(advancedButton);
 
-    const lengthThresholdSlider = screen.getByLabelText(/線分の長さ/);
+    const lengthThresholdSlider = screen.getByLabelText(/線分の最小長/);
     expect(lengthThresholdSlider).toHaveAttribute("min", "3.5");
     expect(lengthThresholdSlider).toHaveAttribute("max", "10");
     expect(lengthThresholdSlider).toHaveAttribute("step", "0.5");
@@ -229,7 +229,7 @@ describe("ParamsPanel", () => {
     // Non-color fields remain visible
     expect(screen.getByLabelText(/ノイズ除去/)).toBeInTheDocument();
     expect(screen.getByLabelText(/角の判定/)).toBeInTheDocument();
-    expect(screen.getByLabelText(/線分の長さ/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/線分の最小長/)).toBeInTheDocument();
     expect(screen.getByLabelText(/曲線の分割/)).toBeInTheDocument();
     expect(screen.getByLabelText(/座標の精度/)).toBeInTheDocument();
 

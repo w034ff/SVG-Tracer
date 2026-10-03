@@ -55,20 +55,49 @@ describe("i18n", () => {
   describe("getIpcErrorMessage", () => {
     it("returns base message when detail is null", async () => {
       const { getIpcErrorMessage } = await import("./index");
-      const msg = getIpcErrorMessage(
+      const msgJa = getIpcErrorMessage(
         { code: "UnsupportedFormat", detail: null },
         translations.ja,
       );
-      expect(msg).toBe("非対応の画像形式です");
+      expect(msgJa).toBe("非対応の画像形式です");
+
+      const msgEn = getIpcErrorMessage(
+        { code: "DecodeFailed", detail: null },
+        translations.en,
+      );
+      expect(msgEn).toBe("Couldn't read the image. The file may be damaged.");
     });
 
-    it("appends detail when detail is present", async () => {
+    it("interpolates detail when {detail} is present in base message", async () => {
       const { getIpcErrorMessage } = await import("./index");
-      const msg = getIpcErrorMessage(
+      const msgJa = getIpcErrorMessage(
+        { code: "TooLarge", detail: "16,777,216" },
+        translations.ja,
+      );
+      expect(msgJa).toBe("画像が大きすぎます（上限 16,777,216 ピクセル）");
+
+      const msgEn = getIpcErrorMessage(
+        { code: "TooLarge", detail: "16,777,216" },
+        translations.en,
+      );
+      expect(msgEn).toBe("Image is too large (limit: 16,777,216 pixels)");
+    });
+
+    it("appends detail at the end when {detail} is not in base message", async () => {
+      const { getIpcErrorMessage } = await import("./index");
+      const msgEn = getIpcErrorMessage(
         { code: "DecodeFailed", detail: "corrupt header" },
         translations.en,
       );
-      expect(msg).toBe("Failed to decode image: corrupt header");
+      expect(msgEn).toBe(
+        "Couldn't read the image. The file may be damaged.: corrupt header",
+      );
+
+      const msgJa = getIpcErrorMessage(
+        { code: "ReadFailed", detail: "permission denied" },
+        translations.ja,
+      );
+      expect(msgJa).toBe("ファイルの読み込みに失敗しました: permission denied");
     });
   });
 });

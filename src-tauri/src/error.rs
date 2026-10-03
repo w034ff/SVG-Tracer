@@ -42,12 +42,30 @@ impl IpcError {
     }
 }
 
+/// Formats an unsigned integer with comma thousands separators per design §5.5.
+pub(crate) fn format_thousands_separator(n: u64) -> String {
+    let s = n.to_string();
+    let bytes = s.as_bytes();
+    let len = bytes.len();
+    let mut result = String::with_capacity(len + (len.saturating_sub(1)) / 3);
+    for (i, &b) in bytes.iter().enumerate() {
+        if i > 0 && (len - i).is_multiple_of(3) {
+            result.push(',');
+        }
+        result.push(b as char);
+    }
+    result
+}
+
 impl From<TraceError> for IpcError {
     fn from(err: TraceError) -> Self {
         match err {
             TraceError::UnsupportedFormat => Self::from_code(ErrorCode::UnsupportedFormat),
             TraceError::DecodeFailed => Self::from_code(ErrorCode::DecodeFailed),
-            TraceError::TooLarge => Self::from_code(ErrorCode::TooLarge),
+            TraceError::TooLarge => Self::new(
+                ErrorCode::TooLarge,
+                format_thousands_separator(tracer::MAX_PIXELS),
+            ),
             TraceError::ReadFailed(msg) => Self::new(ErrorCode::ReadFailed, msg),
             TraceError::TraceFailed(msg) => Self::new(ErrorCode::TraceFailed, msg),
             TraceError::InvalidParams => Self::from_code(ErrorCode::InvalidParams),
@@ -72,6 +90,19 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_format_thousands_separator() {
+        assert_eq!(format_thousands_separator(0), "0");
+        assert_eq!(format_thousands_separator(9), "9");
+        assert_eq!(format_thousands_separator(99), "99");
+        assert_eq!(format_thousands_separator(999), "999");
+        assert_eq!(format_thousands_separator(1000), "1,000");
+        assert_eq!(format_thousands_separator(12345), "12,345");
+        assert_eq!(format_thousands_separator(123456), "123,456");
+        assert_eq!(format_thousands_separator(1000000), "1,000,000");
+        assert_eq!(format_thousands_separator(tracer::MAX_PIXELS), "16,777,216");
+    }
+
+    #[test]
     fn test_ipc_error_serialization_without_detail() {
         let err = IpcError::from_code(ErrorCode::InvalidParams);
         let json = serde_json::to_string(&err).expect("serialization should succeed");
@@ -86,6 +117,13 @@ mod tests {
     }
 
     #[test]
+    fn test_too_large_ipc_error_detail() {
+        let err = IpcError::from(TraceError::TooLarge);
+        assert_eq!(err.code, ErrorCode::TooLarge);
+        assert_eq!(err.detail.as_deref(), Some("16,777,216"));
+    }
+
+    #[test]
     fn test_from_trace_error() {
         assert_eq!(
             IpcError::from(TraceError::UnsupportedFormat),
@@ -97,7 +135,7 @@ mod tests {
         );
         assert_eq!(
             IpcError::from(TraceError::TooLarge),
-            IpcError::from_code(ErrorCode::TooLarge)
+            IpcError::new(ErrorCode::TooLarge, "16,777,216")
         );
         assert_eq!(
             IpcError::from(TraceError::ReadFailed("disk error".into())),
