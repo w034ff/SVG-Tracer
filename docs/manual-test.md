@@ -131,8 +131,9 @@ GitHub Releases（下書き）からインストーラーまたは実行ファ�
    - **Windows (PowerShell)**:
      ```powershell
      New-Item -ItemType Directory -Path "C:\temp\no_write_perm" -Force
-     icacls "C:\temp\no_write_perm" /deny '*S-1-1-0:(W)'
+     icacls "C:\temp\no_write_perm" /deny '*S-1-1-0:(WD,AD)'
      ```
+     `(WD,AD)` はファイルとサブフォルダの作成だけを拒否します。`(W)` は同期の権限まで拒否するため、フォルダを開くこと自体ができなくなり、書き込みの失敗を確かめる手順になりません。
 2. 「一括変換」タブで、「出力フォルダ」の「フォルダを選択」を押して上記で作成したフォルダを指定する。
 3. 任意の正常な画像を含む入力フォルダを指定し、「変換を開始」を実行する。
 4. 書き込み失敗（権限不足等）のエラーが表示され、アプリが異常終了しないことを確認する。
@@ -249,20 +250,19 @@ GitHub Actions の Release ワークフローでビルドされたインスト�
 #### 手順
 
 ##### Windows での確認手順
-1. リソース モニター（`resmon.exe`）を起動し、「ネットワーク」タブを開く（または Sysinternals の TCPView を起動する）。
-2. 「ネットワーク活動のプロセス」一覧を開く。
-3. 以下の 2 種類のプロセスを特定し、チェックボックスをオンにして活動を監視する:
-   - アプリ本体プロセス: `svg-tracer.exe`
-   - WebView2 関連プロセス: `msedgewebview2.exe`
-4. アプリ内で以下の各操作を実施する:
-   - アプリの起動
+`msedgewebview2.exe` はほかのアプリ（Windows の検索など）も使うため、プロセス名だけではこのアプリのものと区別できません。リポジトリの `scripts/watch-network.ps1` は、`svg-tracer.exe` とそこから起動されたプロセスだけを追い、接続と接続先のホスト名を記録します。
+
+1. PowerShell で記録を始める（アプリを起動する前に実行する。アプリが終了すると記録も止まる）:
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File scripts\watch-network.ps1 -LogPath $env:USERPROFILE\Desktop\network-log.txt
+   ```
+2. アプリを起動し、以下の各操作を行う:
    - 「単体変換」タブでの画像読み込み・変換・保存
    - 「一括変換」タブでの変換実行・キャンセル
    - タブの切り替え、パラメータ変更
    - 言語切り替え（日本語 ⇔ 英語）
    - 「このアプリについて」ダイアログの表示
-5. リソース モニターの「ネットワーク活動」および「TCP 接続」テーブルを観察し、各プロセスの通信履歴を記録する。
-   - ※注意: `svg-tracer.exe` 自体は外部通信を一切行いません。WebView2（`msedgewebview2.exe`）は Microsoft Edge のコンポーネントであるため、OS やランタイムの仕様により Microsoft のサーバ（SmartScreen 判定や利用状況確認等）とバックグラウンド通信を行う可能性があります。観測された通信先 IP アドレス、ホスト名、ポート番号を詳細に記録してください（T14 で結果を評価します）。
+3. 起動から 2 分以上たってからアプリを閉じ、ログを確かめる。`Established` の行が外部への接続で、その下の `host:` が接続先のホスト名。
 
 ##### Linux での確認手順
 1. ターミナルで `ss` コマンドによりソケット状態を監視するか、`strace` を用いてネットワーク関連のシステムコールを監視しながらアプリを起動する:
@@ -277,8 +277,9 @@ GitHub Actions の Release ワークフローでビルドされたインスト�
 3. 外部へのアウトバウンド接続（HTTP / HTTPS / DNS 等）が要求されていないことを確認する（※ローカル IPC や X11 / Wayland 用の UNIX ドメインソケット通信は除外）。また、WebKitGTK の子プロセス（`WebKitNetworkProcess`、`WebKitWebProcess`）のソケット・通信状況も監視・記録する。
 
 #### 期待する結果
-- アプリ本体（`svg-tracer` / `svg-tracer.exe`）から外部インターネットへの接続・通信が一切発生しないこと。
-- Windows の `msedgewebview2.exe`、および Linux の WebKitGTK 子プロセス（`WebKitNetworkProcess`、`WebKitWebProcess`）について通信状況を監視・記録すること。
+- アプリ本体（`svg-tracer` / `svg-tracer.exe`）から外部への接続が発生しないこと。
+- Linux: WebKitGTK の子プロセス（`WebKitNetworkProcess`、`WebKitWebProcess`）からも外部への接続が発生しないこと。
+- Windows: WebView2 の接続は、起動直後の `substrate.office.com`（ポート 443）だけであること。これは要件 NFR-01 の例外で、アプリからは止められない（詳細設計 §7）。システムのプロキシ設定の自動構成スクリプト（PAC）の取得など、ほかの接続があれば不合格とする。
 
 #### 結果
 - [ ] 合格 / [ ] 不合格
