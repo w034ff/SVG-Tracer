@@ -211,7 +211,9 @@ export function AboutDialog({
               type="button"
               className="btn about-toggle-btn"
               aria-expanded={isLicensesExpanded}
-              aria-controls="about-third-party-licenses"
+              aria-controls={
+                isLicensesExpanded ? "about-third-party-licenses" : undefined
+              }
               onClick={handleToggleLicenses}
             >
               {isLicensesExpanded

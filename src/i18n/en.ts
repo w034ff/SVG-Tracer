@@ -100,7 +100,6 @@ export const en: TranslationKeys = {
   aboutTitle: "About SVG Tracer",
   aboutVersion: "Version {version}",
   aboutAppLicense: "App license (MIT)",
-  aboutThirdPartyLicenses: "Third-Party Licenses",
   aboutShowThirdPartyLicenses: "Show third-party licenses",
   aboutHideThirdPartyLicenses: "Hide third-party licenses",
   aboutLoadingLicenses: "Loading licenses...",

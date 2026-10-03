@@ -68,10 +68,7 @@ describe("AboutDialog", () => {
     });
     expect(toggleBtn).toBeInTheDocument();
     expect(toggleBtn).toHaveAttribute("aria-expanded", "false");
-    expect(toggleBtn).toHaveAttribute(
-      "aria-controls",
-      "about-third-party-licenses",
-    );
+    expect(toggleBtn).not.toHaveAttribute("aria-controls");
 
     // Third-party licenses should not be loaded or present initially
     expect(screen.queryByText(/vtracer/)).toBeNull();
@@ -93,6 +90,10 @@ describe("AboutDialog", () => {
     // Click to expand
     fireEvent.click(toggleBtn);
     expect(toggleBtn).toHaveAttribute("aria-expanded", "true");
+    expect(toggleBtn).toHaveAttribute(
+      "aria-controls",
+      "about-third-party-licenses",
+    );
     expect(toggleBtn).toHaveTextContent("第三者ライセンスを隠す");
 
     // Third-party licenses loaded and displayed
@@ -106,10 +107,36 @@ describe("AboutDialog", () => {
     // Click to collapse
     fireEvent.click(toggleBtn);
     expect(toggleBtn).toHaveAttribute("aria-expanded", "false");
+    expect(toggleBtn).not.toHaveAttribute("aria-controls");
     expect(toggleBtn).toHaveTextContent("第三者ライセンスを表示");
 
     expect(screen.queryByText(/vtracer/)).toBeNull();
     expect(document.getElementById("about-third-party-licenses")).toBeNull();
+  });
+
+  it("sets aria-controls to about-third-party-licenses when expanded and targets the rendered element", async () => {
+    render(
+      <LanguageProvider initialLanguage="ja">
+        <AboutDialog isOpen={true} onClose={vi.fn()} />
+      </LanguageProvider>,
+    );
+
+    const toggleBtn = screen.getByRole("button", {
+      name: "第三者ライセンスを表示",
+    });
+    expect(toggleBtn).not.toHaveAttribute("aria-controls");
+
+    fireEvent.click(toggleBtn);
+
+    expect(toggleBtn).toHaveAttribute(
+      "aria-controls",
+      "about-third-party-licenses",
+    );
+    expect(
+      document.getElementById("about-third-party-licenses"),
+    ).toBeInTheDocument();
+
+    await screen.findByText(/vtracer/);
   });
 
   it("collapses third-party licenses when dialog is closed and reopened", async () => {
