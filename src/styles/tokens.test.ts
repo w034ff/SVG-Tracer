@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 const HEX_COLOR_REGEX = /#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})\b/;
@@ -35,5 +37,16 @@ describe("Theme and Style tokens", () => {
     }
 
     expect(violations).toEqual([]);
+  });
+
+  it("defines --font-sans per design §8.5", () => {
+    const tokensPath = path.resolve(__dirname, "tokens.css");
+    const tokensCss = fs.readFileSync(tokensPath, "utf-8");
+    const expectedFontSans =
+      '"Segoe UI", "Noto Sans JP", "Noto Sans CJK JP", "Yu Gothic UI", system-ui, sans-serif';
+    const match = tokensCss.match(/--font-sans:\s*([\s\S]*?);/);
+    expect(match).not.toBeNull();
+    const actualFontSans = match ? match[1].replace(/\s+/g, " ").trim() : "";
+    expect(actualFontSans).toBe(expectedFontSans);
   });
 });

@@ -99,7 +99,6 @@ export const ja = {
   aboutTitle: "このアプリについて",
   aboutVersion: "バージョン {version}",
   aboutAppLicense: "このアプリのライセンス（MIT）",
-  aboutThirdPartyLicenses: "第三者ライセンス一覧",
   aboutShowThirdPartyLicenses: "第三者ライセンスを表示",
   aboutHideThirdPartyLicenses: "第三者ライセンスを隠す",
   aboutLoadingLicenses: "ライセンス一覧を読み込み中…",

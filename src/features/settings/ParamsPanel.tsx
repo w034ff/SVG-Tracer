@@ -136,7 +136,7 @@ export function ParamsPanel({
           </div>
         )}
 
-        {/* Filter speckle */}
+        {/* Remove specks */}
         <div className="field">
           <label htmlFor="fs" className="field-head">
             <span>{t.filterSpeckle}</span>
@@ -221,7 +221,7 @@ export function ParamsPanel({
         {/* Advanced settings section */}
         {isAdvancedOpen && (
           <>
-            {/* Gradient step (color mode only) */}
+            {/* Color separation (color mode only) */}
             {isColorMode && (
               <div className="field">
                 <label htmlFor="ld" className="field-head">
@@ -280,7 +280,7 @@ export function ParamsPanel({
               />
             </div>
 
-            {/* Splice threshold */}
+            {/* Curve splitting */}
             <div className="field">
               <label htmlFor="st" className="field-head">
                 <span>{t.spliceThreshold}</span>

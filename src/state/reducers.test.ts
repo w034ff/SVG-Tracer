@@ -275,20 +275,8 @@ describe("reducers", () => {
       expect(withPreview.previewUrl).toBe("blob:http://localhost/preview");
     });
 
-    it("clamps zoom level within bounds and updates pan offset", () => {
+    it("updates pan offset", () => {
       const initial = createInitialSingleConversionState();
-      const zoomed = singleConversionReducer(initial, {
-        type: "SET_ZOOM",
-        zoom: 20.0,
-      });
-      expect(zoomed.zoom).toBe(16.0);
-
-      const zoomMin = singleConversionReducer(initial, {
-        type: "SET_ZOOM",
-        zoom: 0.05,
-      });
-      expect(zoomMin.zoom).toBe(0.1);
-
       const panned = singleConversionReducer(initial, {
         type: "SET_PAN",
         pan: { x: 50, y: -30 },

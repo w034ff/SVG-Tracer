@@ -589,14 +589,15 @@ describe("App", () => {
         name: "第三者ライセンスを表示",
       });
       expect(toggleBtn).toHaveAttribute("aria-expanded", "false");
-      expect(toggleBtn).toHaveAttribute(
-        "aria-controls",
-        "about-third-party-licenses",
-      );
+      expect(toggleBtn).not.toHaveAttribute("aria-controls");
 
       fireEvent.click(toggleBtn);
 
       expect(toggleBtn).toHaveAttribute("aria-expanded", "true");
+      expect(toggleBtn).toHaveAttribute(
+        "aria-controls",
+        "about-third-party-licenses",
+      );
       expect(toggleBtn).toHaveTextContent("第三者ライセンスを隠す");
 
       await screen.findByText(/vtracer/);
