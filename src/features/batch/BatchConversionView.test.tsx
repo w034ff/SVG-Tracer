@@ -265,7 +265,9 @@ describe("BatchConversionView", () => {
     ).toBeInTheDocument();
     expect(screen.getAllByText("file2.png")).toHaveLength(2);
     expect(
-      screen.getByText("画像のデコードに失敗しました: broken image stream"),
+      screen.getByText(
+        "画像を読み込めませんでした。ファイルが壊れている可能性があります。: broken image stream",
+      ),
     ).toBeInTheDocument();
     expect(screen.getByText("完了")).toBeInTheDocument();
     expect(screen.getByText("2 / 2")).toBeInTheDocument();
@@ -525,7 +527,7 @@ describe("BatchConversionView", () => {
     // Summary should show cancellation message
     expect(
       await screen.findByText(
-        "変換を中止しました：成功 1 件 · 失敗 0 件 · 未処理 2 件",
+        "変換をキャンセルしました：成功 1 件 · 失敗 0 件 · 未処理 2 件",
       ),
     ).toBeInTheDocument();
 
@@ -581,7 +583,7 @@ describe("BatchConversionView", () => {
     expect(alert).toBeInTheDocument();
     expect(
       screen.getByText(
-        "画像ハンドルが見つかりません: input directory handle lost",
+        "画像をもう一度開いてください: input directory handle lost",
       ),
     ).toBeInTheDocument();
   });
@@ -747,7 +749,7 @@ describe("BatchConversionView", () => {
 
     expect(
       screen.getByText(
-        "変換を中止しました：成功 1 件 · 失敗 0 件 · 未処理 3 件",
+        "変換をキャンセルしました：成功 1 件 · 失敗 0 件 · 未処理 3 件",
       ),
     ).toBeInTheDocument();
 

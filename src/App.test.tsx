@@ -118,7 +118,7 @@ describe("App", () => {
 
     // ParamsPanel labels should update to English
     expect(screen.getByLabelText("Preset")).toBeInTheDocument();
-    expect(screen.getByText("Filter speckle")).toBeInTheDocument();
+    expect(screen.getByText("Remove specks")).toBeInTheDocument();
   });
 
   it("renders with English as default when navigator languages do not contain ja", () => {
@@ -331,7 +331,7 @@ describe("App", () => {
       const colorPrecisionSlider = screen.getByLabelText(/Color precision/);
       expect(colorPrecisionSlider).toHaveValue("4");
 
-      const filterSpeckleSlider = screen.getByLabelText(/Filter speckle/);
+      const filterSpeckleSlider = screen.getByLabelText(/Remove specks/);
       expect(filterSpeckleSlider).toHaveValue("8");
     });
 

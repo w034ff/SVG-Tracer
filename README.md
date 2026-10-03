@@ -9,7 +9,7 @@ All processing is performed entirely locally on your machine—no images are upl
 
 - **Single Conversion**: Interactive side-by-side preview comparing the original raster image and the vectorized SVG with synchronized zoom and pan. Adjust trace parameters in real time while observing path counts and output file sizes.
 - **Batch Conversion**: Convert entire folders of images in bulk. Utilizes multiple CPU cores for fast parallel processing. Automatically resolves naming conflicts by appending sequential numbers (e.g. `name (1).svg`) to prevent overwriting existing files. Can be cancelled at any point without leaving incomplete or corrupt files.
-- **Presets**: Built-in presets for "Logo (color)", "Icon (few colors)", and "Black & white", along with full access to advanced trace parameters.
+- **Presets**: Built-in presets for "Logo (color)", "Illustration (fewer colors)", and "Black & white", along with full access to advanced trace parameters.
 - **Bilingual Interface**: Full support for both Japanese and English, with language preference persisted across launches.
 - **No Network Communication**: The application itself does not make any network requests (contains no telemetry and no update checks). On Windows, the Microsoft Edge WebView2 runtime that draws the window connects to a Microsoft service (`substrate.office.com`) at startup on its own; the app cannot turn this off.
 

@@ -841,7 +841,9 @@ describe("SingleConversionView", () => {
 
       // Error banner should be displayed
       expect(
-        screen.getByText("画像のデコードに失敗しました: corrupt image chunk"),
+        screen.getByText(
+          "画像を読み込めませんでした。ファイルが壊れている可能性があります。: corrupt image chunk",
+        ),
       ).toBeInTheDocument();
 
       // Wait much longer than the 300ms debounce
@@ -907,7 +909,9 @@ describe("SingleConversionView", () => {
 
       // Error banner appears, convert is not called
       expect(
-        screen.getByText("画像のデコードに失敗しました: corrupt"),
+        screen.getByText(
+          "画像を読み込めませんでした。ファイルが壊れている可能性があります。: corrupt",
+        ),
       ).toBeInTheDocument();
 
       await act(async () => {
@@ -1031,14 +1035,16 @@ describe("SingleConversionView", () => {
       {
         code: "DecodeFailed",
         detail: "broken chunk",
-        expectedJa: "画像のデコードに失敗しました: broken chunk",
-        expectedEn: "Failed to decode image: broken chunk",
+        expectedJa:
+          "画像を読み込めませんでした。ファイルが壊れている可能性があります。: broken chunk",
+        expectedEn:
+          "Couldn't read the image. The file may be damaged.: broken chunk",
       },
       {
         code: "TooLarge",
-        detail: null,
-        expectedJa: "画像サイズが上限を超過しています",
-        expectedEn: "Image exceeds maximum allowed dimensions",
+        detail: "16,777,216",
+        expectedJa: "画像が大きすぎます（上限 16,777,216 ピクセル）",
+        expectedEn: "Image is too large (limit: 16,777,216 pixels)",
       },
       {
         code: "ReadFailed",
@@ -1055,14 +1061,14 @@ describe("SingleConversionView", () => {
       {
         code: "TraceFailed",
         detail: null,
-        expectedJa: "ベクター変換に失敗しました",
+        expectedJa: "SVG への変換に失敗しました",
         expectedEn: "Vector tracing failed",
       },
       {
         code: "UnknownHandle",
         detail: null,
-        expectedJa: "画像ハンドルが見つかりません",
-        expectedEn: "Image handle not found",
+        expectedJa: "画像をもう一度開いてください",
+        expectedEn: "Please open the image again",
       },
       {
         code: "InvalidParams",
