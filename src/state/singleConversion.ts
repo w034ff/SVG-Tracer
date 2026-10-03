@@ -52,7 +52,6 @@ export type SingleConversionAction =
     }
   | { type: "CONVERT_ERROR"; error: IpcError }
   | { type: "SET_ERROR"; error: IpcError | null }
-  | { type: "SET_ZOOM"; zoom: number; anchor?: PanOffset }
   | { type: "ZOOM_BY"; factor: number; anchor?: PanOffset }
   | { type: "SET_PAN"; pan: PanOffset }
   | { type: "SET_ZOOM_AND_PAN"; zoom: number; pan: PanOffset }
@@ -180,19 +179,6 @@ export function singleConversionReducer(
         status: action.error ? "error" : state.status,
         error: action.error,
       };
-    case "SET_ZOOM": {
-      const next = calculateZoomPan(
-        state.zoom,
-        action.zoom,
-        state.pan,
-        action.anchor,
-      );
-      return {
-        ...state,
-        zoom: next.zoom,
-        pan: next.pan,
-      };
-    }
     case "ZOOM_BY": {
       const next = calculateZoomPan(
         state.zoom,

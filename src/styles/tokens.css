@@ -32,7 +32,8 @@
   --color-overlay-backdrop: rgba(0, 0, 0, 0.45);
 
   --font-sans:
-    "Segoe UI", "Noto Sans JP", "Yu Gothic UI", system-ui, sans-serif;
+    "Segoe UI", "Noto Sans JP", "Noto Sans CJK JP", "Yu Gothic UI", system-ui,
+    sans-serif;
   --font-mono: "Cascadia Mono", ui-monospace, monospace;
   --radius-control: 6px;
   --control-height: 32px;
