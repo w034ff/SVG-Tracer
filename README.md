@@ -11,7 +11,7 @@ All processing is performed entirely locally on your machine—no images are upl
 - **Batch Conversion**: Convert entire folders of images in bulk. Utilizes multiple CPU cores for fast parallel processing. Automatically resolves naming conflicts by appending sequential numbers (e.g. `name (1).svg`) to prevent overwriting existing files. Can be cancelled at any point without leaving incomplete or corrupt files.
 - **Presets**: Built-in presets for "Logo (color)", "Icon (few colors)", and "Black & white", along with full access to advanced trace parameters.
 - **Bilingual Interface**: Full support for both Japanese and English, with language preference persisted across launches.
-- **No Network Communication**: The application itself does not make any network requests (contains no telemetry and no update checks).
+- **No Network Communication**: The application itself does not make any network requests (contains no telemetry and no update checks). On Windows, the Microsoft Edge WebView2 runtime that draws the window connects to a Microsoft service (`substrate.office.com`) at startup on its own; the app cannot turn this off.
 
 ## Installation
 
@@ -28,7 +28,11 @@ Download the appropriate installer or package for your operating system from the
 - **Formats**: Available as an AppImage or a Debian package (`.deb`).
 - **Requirements**: WebKitGTK 4.1 (e.g., `libwebkit2gtk-4.1-0` on Ubuntu 22.04 or later).
 - **AppImage**:
-  Make the downloaded AppImage executable and run it:
+  AppImages need FUSE 2, which Ubuntu 22.04 and later do not install by default. Install it first (`libfuse2t64` on Ubuntu 24.04 and later, `libfuse2` on 22.04):
+  ```bash
+  sudo apt install libfuse2t64
+  ```
+  Then make the downloaded AppImage executable and run it:
   ```bash
   chmod +x SVG*Tracer_*_amd64.AppImage
   ./SVG*Tracer_*_amd64.AppImage
