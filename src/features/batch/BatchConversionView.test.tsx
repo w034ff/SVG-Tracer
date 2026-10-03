@@ -972,4 +972,104 @@ describe("BatchConversionView", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("2 / 3")).toBeInTheDocument();
   });
+
+  it("resets all item status columns in the table to '待機' when re-selecting output folder after completion", async () => {
+    const { emit } = await import("@tauri-apps/api/event");
+
+    const mockInput: PickBatchInputResult = {
+      dirLabel: "in_folder",
+      targets: ["file1.png", "file2.png"],
+      ignoredCount: 0,
+    };
+    let currentOutput: PickBatchOutputResult = {
+      dirLabel: "out1",
+    };
+
+    mockIPC(
+      (cmd) => {
+        if (cmd === "pick_batch_input") {
+          return mockInput;
+        }
+        if (cmd === "pick_batch_output") {
+          return currentOutput;
+        }
+        if (cmd === "start_batch") {
+          return null;
+        }
+        return null;
+      },
+      { shouldMockEvents: true },
+    );
+
+    setupAppOnBatchTab();
+
+    const [pickInputBtn, pickOutputBtn] = screen.getAllByRole("button", {
+      name: "フォルダを選択",
+    });
+    if (!pickInputBtn || !pickOutputBtn) {
+      throw new Error("Folder select buttons not found");
+    }
+
+    await act(async () => {
+      fireEvent.click(pickInputBtn);
+      fireEvent.click(pickOutputBtn);
+    });
+
+    const startBtn = await screen.findByRole("button", {
+      name: "変換を開始",
+    });
+    await act(async () => {
+      fireEvent.click(startBtn);
+    });
+
+    // Complete batch with 1 ok and 1 failed
+    await act(async () => {
+      await emit("batch-item", {
+        name: "file1.png",
+        status: "ok",
+        outputName: "file1.svg",
+        error: null,
+      });
+      await emit("batch-item", {
+        name: "file2.png",
+        status: "failed",
+        outputName: null,
+        error: {
+          code: "DecodeFailed",
+          detail: "damaged image",
+        },
+      });
+      await emit("batch-progress", {
+        done: 2,
+        total: 2,
+        current: null,
+      });
+      await emit("batch-finished", {
+        succeeded: 1,
+        failed: 1,
+        skipped: 0,
+        cancelled: false,
+      });
+    });
+
+    // Verify finished state shows ok, failed, and outputName
+    expect(screen.getByText("✓ 完了")).toBeInTheDocument();
+    expect(screen.getByText("✕ 失敗")).toBeInTheDocument();
+    expect(screen.getByText("file1.svg")).toBeInTheDocument();
+    expect(screen.queryByText("待機")).not.toBeInTheDocument();
+
+    // Re-select output folder
+    currentOutput = {
+      dirLabel: "out2",
+    };
+    await act(async () => {
+      fireEvent.click(pickOutputBtn);
+    });
+
+    // All items should now display "待機"
+    expect(screen.getAllByText("待機")).toHaveLength(2);
+    expect(screen.queryByText("✓ 完了")).not.toBeInTheDocument();
+    expect(screen.queryByText("✕ 失敗")).not.toBeInTheDocument();
+    expect(screen.queryByText("file1.svg")).not.toBeInTheDocument();
+  });
 });

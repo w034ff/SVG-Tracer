@@ -90,15 +90,23 @@ export function batchConversionReducer(
       };
     }
 
-    case "SET_OUTPUT_DIR":
+    case "SET_OUTPUT_DIR": {
+      const items: BatchItemRow[] = state.items.map((item) => ({
+        ...item,
+        outputName: null,
+        status: "wait",
+        error: null,
+      }));
       return {
         ...state,
         status: "idle",
         outputDir: action.outputDir,
+        items,
         progress: null,
         finished: null,
         error: null,
       };
+    }
 
     case "START_BATCH": {
       const items: BatchItemRow[] = state.items.map((item) => ({

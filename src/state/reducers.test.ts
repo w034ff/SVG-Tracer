@@ -598,6 +598,93 @@ describe("reducers", () => {
       expect(resetOutput.finished).toBeNull();
     });
 
+    it("resets all item rows to wait and clears output names and errors on SET_OUTPUT_DIR after batch conversion finishes", () => {
+      const initial = batchConversionReducer(
+        createInitialBatchConversionState(),
+        {
+          type: "SET_INPUT_DIR",
+          inputDir: {
+            dirLabel: "dir",
+            targets: ["done.png", "failed.png"],
+            ignoredCount: 0,
+          },
+        },
+      );
+
+      const running = batchConversionReducer(initial, {
+        type: "START_BATCH",
+      });
+
+      const withOk = batchConversionReducer(running, {
+        type: "ITEM_PROCESSED",
+        item: {
+          name: "done.png",
+          status: "ok",
+          outputName: "done.svg",
+          error: null,
+        },
+      });
+
+      const withError: IpcError = {
+        code: "DecodeFailed",
+        detail: "broken image",
+      };
+      const withFailed = batchConversionReducer(withOk, {
+        type: "ITEM_PROCESSED",
+        item: {
+          name: "failed.png",
+          status: "failed",
+          outputName: null,
+          error: withError,
+        },
+      });
+
+      const finished = batchConversionReducer(withFailed, {
+        type: "FINISH_BATCH",
+        finished: {
+          succeeded: 1,
+          failed: 1,
+          skipped: 0,
+          cancelled: false,
+        },
+      });
+
+      expect(finished.items[0]).toEqual({
+        name: "done.png",
+        status: "ok",
+        outputName: "done.svg",
+        error: null,
+      });
+      expect(finished.items[1]).toEqual({
+        name: "failed.png",
+        status: "failed",
+        outputName: null,
+        error: withError,
+      });
+
+      const reset = batchConversionReducer(finished, {
+        type: "SET_OUTPUT_DIR",
+        outputDir: { dirLabel: "new_out" },
+      });
+
+      expect(reset.status).toBe("idle");
+      expect(reset.outputDir?.dirLabel).toBe("new_out");
+      expect(reset.items).toEqual([
+        {
+          name: "done.png",
+          status: "wait",
+          outputName: null,
+          error: null,
+        },
+        {
+          name: "failed.png",
+          status: "wait",
+          outputName: null,
+          error: null,
+        },
+      ]);
+    });
+
     it("marks unprocessed items even when finished with cancelled: false if items never reported", () => {
       const initial = batchConversionReducer(
         createInitialBatchConversionState(),
