@@ -150,13 +150,13 @@ VTracer の出力するルート要素は `<svg version="1.1" xmlns="…" width=
 | --- | --- | --- | --- | --- |
 | colorMode | color_mode | color / binary | 色 / Color | 主要 |
 | colorPrecision | color_precision | 1–8 | 色の精度 / Color precision | 主要（カラー時のみ） |
-| filterSpeckle | filter_speckle | 0–16 | ノイズ除去 / Filter speckle | 主要 |
+| filterSpeckle | filter_speckle | 0–16 | ノイズ除去 / Remove specks | 主要 |
 | cornerThreshold | corner_threshold | 0–180 | 角の判定 / Corner threshold | 主要 |
 | curveMode | mode | spline / polygon | 曲線 / 多角形 / Curves / Polygons | 主要 |
-| layerDifference | layer_difference | 0–128 | 色の階調差 / Gradient step | 詳細（カラー時のみ） |
+| layerDifference | layer_difference | 0–128 | 色の階調差 / Color separation | 詳細（カラー時のみ） |
 | hierarchical | hierarchical | stacked / cutout | 重ね方 / Layering | 詳細（カラー時のみ） |
-| lengthThreshold | length_threshold | 3.5–10.0 | 線分の長さ / Segment length | 詳細 |
-| spliceThreshold | splice_threshold | 0–180 | 曲線の分割 / Splice threshold | 詳細 |
+| lengthThreshold | length_threshold | 3.5–10.0 | 線分の最小長 / Min. segment length | 詳細 |
+| spliceThreshold | splice_threshold | 0–180 | 曲線の分割 / Curve splitting | 詳細 |
 | pathPrecision | path_precision | 0–8 | 座標の精度 / Path precision | 詳細 |
 
 `max_iterations` は 10 に固定し、UI には出さない。範囲の最小値・最大値は定数として `params.rs` に置き、フロントエンドには ts-rs で生成した定数ではなく IPC コマンド `get_param_spec` で渡す（範囲の定義を 1 か所にするため）。UI のスライダーの刻みは、整数のパラメータは 1、`lengthThreshold` は 0.5 とする（刻みは表示の都合なのでフロントエンドの定数に置き、Rust 側では検査しない）。
@@ -169,7 +169,7 @@ VTracer の出力するルート要素は `<svg version="1.1" xmlns="…" width=
 
 プリセットの値（§10 のスパイクで全フィクスチャが §9.2 の合格条件を満たすことを確認済み）:
 
-| パラメータ | ロゴ（カラー） | アイコン（少色） | 白黒 |
+| パラメータ | ロゴ（カラー） | イラスト（色数少なめ） | 白黒 |
 | --- | --- | --- | --- |
 | colorMode | color | color | binary |
 | colorPrecision | 6 | 4 | – |
@@ -236,18 +236,20 @@ IPC では `{ code, detail }` の形で返す。`code` は下表の名前の文�
 
 引数の型が合わない場合（整数の項目に小数が来たなど）は、コマンドが呼ばれる前に Tauri が文字列のエラーを返し、この形にならない。フロントエンドの IPC ラッパー（`src/ipc/`）は、`{ code, detail }` の形でない失敗を `{ code: "InvalidParams", detail: <受け取った内容の文字列> }` に変換し、呼び出し側が常に同じ形で扱えるようにする。
 
-| コード | 状況 |
-| --- | --- |
-| UnsupportedFormat | 非対応の形式 |
-| DecodeFailed | デコード失敗（壊れたファイル） |
-| TooLarge | ピクセル数が上限超過 |
-| ReadFailed | 読み込み失敗 |
-| WriteFailed | 書き込み失敗（権限、容量など） |
-| TraceFailed | VTracer がエラーを返した |
-| Superseded | 新しい変換要求に置き換えられた（画面には表示しない） |
-| BatchRunning | 一括変換の実行中に再度開始しようとした |
-| UnknownHandle | 存在しないハンドル ID |
-| InvalidParams | パラメータが §4.5 の範囲外（UI からは通常送られない） |
+| コード | 状況 | 表示文言（ja / en） |
+| --- | --- | --- |
+| UnsupportedFormat | 非対応の形式 | 非対応の画像形式です / Unsupported image format |
+| DecodeFailed | デコード失敗（壊れたファイル） | 画像を読み込めませんでした。ファイルが壊れている可能性があります。 / Couldn't read the image. The file may be damaged. |
+| TooLarge | ピクセル数が上限超過 | 画像が大きすぎます（上限 {detail} ピクセル） / Image is too large (limit: {detail} pixels) |
+| ReadFailed | 読み込み失敗 | ファイルの読み込みに失敗しました / Failed to read file |
+| WriteFailed | 書き込み失敗（権限、容量など） | ファイルの書き込みに失敗しました / Failed to write file |
+| TraceFailed | VTracer がエラーを返した | SVG への変換に失敗しました / Vector tracing failed |
+| Superseded | 新しい変換要求に置き換えられた | （画面には表示しない） |
+| BatchRunning | 一括変換の実行中に再度開始しようとした | 一括変換が既に実行中です / Batch conversion is already running |
+| UnknownHandle | 存在しないハンドル ID | 画像をもう一度開いてください / Please open the image again |
+| InvalidParams | パラメータが §4.5 の範囲外（UI からは通常送られない） | 無効なパラメータです / Invalid parameters |
+
+表示文言には、デコードやハンドルのような内部の用語を使わず、利用者が次に何をすればよいかが分かる言い方にする。文言に `{detail}` があるときは `detail` をそこに埋め込み、ないときは末尾に `: <detail>` を添える。`TooLarge` の `detail` は、Rust が `MAX_PIXELS` を 3 桁区切りの文字列（`16,777,216`）にして入れる。上限の数値をフロントエンドに書き写さず、§4.2 の定数だけを元にするため。
 
 単体変換画面のエラーの帯は、ほかの要素の間に差し込まず、ツールバーのすぐ下にプレビューの上端へ重ねて表示する（`position: absolute`）。帯が出たり消えたりしても、ツールバーやプレビューの位置は変わらない。ツールバーのボタンは隠さない。帯は、別の画像を選んだときと変換が成功したときに消える。一括変換画面のエラーは開始時の失敗などに限られ、表示が繰り返し出入りしないので、結果のまとめと同じく内容の並びの中に表示する。
 
