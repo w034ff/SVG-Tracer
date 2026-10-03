@@ -234,6 +234,47 @@ describe("reducers", () => {
       expect(error.error?.code).toBe("DecodeFailed");
     });
 
+    it("handles preview error and sets previewFailed flag", () => {
+      const initial = createInitialSingleConversionState();
+      const withImage = singleConversionReducer(initial, {
+        type: "SET_IMAGE",
+        image: { id: "h1", name: "broken.png" },
+      });
+      expect(withImage.previewFailed).toBe(false);
+
+      const previewError = singleConversionReducer(withImage, {
+        type: "PREVIEW_ERROR",
+        error: { code: "DecodeFailed", detail: "corrupt image" },
+      });
+      expect(previewError.status).toBe("error");
+      expect(previewError.error?.code).toBe("DecodeFailed");
+      expect(previewError.previewFailed).toBe(true);
+
+      // START_CONVERT does not clear error when previewFailed is true
+      const ignoredConvert = singleConversionReducer(previewError, {
+        type: "START_CONVERT",
+      });
+      expect(ignoredConvert.status).toBe("error");
+      expect(ignoredConvert.error?.code).toBe("DecodeFailed");
+
+      // Selecting another image resets previewFailed and clears error
+      const nextImage = singleConversionReducer(previewError, {
+        type: "SET_IMAGE",
+        image: { id: "h2", name: "valid.png" },
+      });
+      expect(nextImage.status).toBe("loading_preview");
+      expect(nextImage.error).toBeNull();
+      expect(nextImage.previewFailed).toBe(false);
+
+      // Successfully setting preview keeps previewFailed false
+      const withPreview = singleConversionReducer(nextImage, {
+        type: "SET_PREVIEW",
+        previewUrl: "blob:http://localhost/preview",
+      });
+      expect(withPreview.previewFailed).toBe(false);
+      expect(withPreview.previewUrl).toBe("blob:http://localhost/preview");
+    });
+
     it("clamps zoom level within bounds and updates pan offset", () => {
       const initial = createInitialSingleConversionState();
       const zoomed = singleConversionReducer(initial, {

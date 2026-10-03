@@ -31,6 +31,7 @@ export type SingleConversionState = {
   error: IpcError | null;
   zoom: number;
   pan: PanOffset;
+  previewFailed: boolean;
 };
 
 export type SingleConversionAction =
@@ -40,6 +41,7 @@ export type SingleConversionAction =
       previewUrl: string | null;
       dimensions?: ImageDimensions | null;
     }
+  | { type: "PREVIEW_ERROR"; error: IpcError }
   | { type: "SET_DIMENSIONS"; dimensions: ImageDimensions }
   | { type: "START_CONVERT" }
   | {
@@ -101,6 +103,7 @@ export function createInitialSingleConversionState(): SingleConversionState {
     error: null,
     zoom: DEFAULT_ZOOM,
     pan: { x: 0, y: 0 },
+    previewFailed: false,
   };
 }
 
@@ -122,6 +125,7 @@ export function singleConversionReducer(
         error: null,
         zoom: DEFAULT_ZOOM,
         pan: { x: 0, y: 0 },
+        previewFailed: false,
       };
     case "SET_PREVIEW":
       return {
@@ -132,6 +136,14 @@ export function singleConversionReducer(
             ? action.dimensions
             : state.imageDimensions,
         error: null,
+        previewFailed: false,
+      };
+    case "PREVIEW_ERROR":
+      return {
+        ...state,
+        status: "error",
+        error: action.error,
+        previewFailed: true,
       };
     case "SET_DIMENSIONS":
       return {
@@ -139,6 +151,9 @@ export function singleConversionReducer(
         imageDimensions: action.dimensions,
       };
     case "START_CONVERT":
+      if (state.previewFailed) {
+        return state;
+      }
       return {
         ...state,
         status: "converting",
