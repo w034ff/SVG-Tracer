@@ -1,6 +1,7 @@
 # Dependency policy checked by `cargo deny check licenses bans` (requirements NFR-05,
-# design §7). The frontend's npm dependencies are checked separately by the
-# `licenses:check` script in package.json.
+# design §7) and, for known vulnerabilities, `cargo deny check advisories`
+# (.github/workflows/audit.yml). The frontend's npm dependencies are checked
+# separately by the `licenses:check` script and `npm audit`.
 
 [graph]
 # Release targets only. Tauri pulls an HTTP client (reqwest) for Android and iOS,
@@ -57,3 +58,10 @@ deny = [
 ]
 # Duplicate versions are common in the Tauri graph and are not a policy concern here.
 multiple-versions = "allow"
+
+[advisories]
+# Vulnerabilities and unsoundness fail the check wherever they are in the graph.
+# "Unmaintained" notices are reported only for crates this workspace depends on
+# directly: the transitive ones come from vtracer, which is pinned (design §2),
+# and from Tauri's GTK bindings, neither of which this project can replace.
+unmaintained = "workspace"

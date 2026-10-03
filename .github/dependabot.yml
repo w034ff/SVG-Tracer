@@ -1,0 +1,35 @@
+# Monthly dependency update pull requests. Minor and patch updates are grouped
+# per ecosystem to keep the number of PRs small; major updates come one by one
+# because they may need code changes.
+#
+# A PR that changes Rust or npm dependencies fails the "license list is current"
+# CI step until `npm run licenses:generate` is run on the branch and the result
+# committed (src/licenses/third-party-licenses.json).
+version: 2
+updates:
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    groups:
+      cargo-minor-patch:
+        update-types: ["minor", "patch"]
+    ignore:
+      # Pinned to an exact version so that SVG output stays the same (design §2).
+      - dependency-name: "vtracer"
+
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    groups:
+      npm-minor-patch:
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    groups:
+      actions:
+        patterns: ["*"]

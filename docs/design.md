@@ -309,6 +309,7 @@ D&D は Rust の `WindowEvent::DragDrop` で受ける。複数ファイルが落
 
 - **通信しない**: HTTP クライアント（`reqwest`、`ureq`、`hyper` のクライアント機能など）とアップデータ系プラグインを依存に含めない。`cargo-deny` の `bans` で禁止する。
 - **SVG の表示**: §5.1 のとおり `<img>` 経由でのみ表示する。
+- **既知の脆弱性**: 同梱する依存（Rust の crate と npm の本番用の依存）を `cargo deny check advisories` と `npm audit --omit=dev` で検査する。PR と main への push、毎週の定期実行（`.github/workflows/audit.yml`）に加え、リリース時にも検査し、見つかれば下書きを作らない。依存の更新は Dependabot が毎月 PR にする（脆弱性を直す更新は、GitHub の Dependabot セキュリティ更新が見つかり次第 PR にする）。保守されていない crate の通知は、直接の依存だけを対象にする（間接の依存は vtracer と Tauri の GTK バインディングから来ていて、置き換えられないため）。
 - **WebView2 の起動オプション**（Windows、`tauri.conf.json` の `additionalBrowserArgs`）: `--no-proxy-server --host-resolver-rules="MAP * ~NOTFOUND"` を渡す。指定しないと WebView2 は、システムのプロキシ設定にある自動構成スクリプト（PAC）を取りに行き、起動の約 60 秒後に Microsoft のサーバーへも接続する（T14 で観察）。画面と IPC は Tauri のカスタムプロトコル（Windows では `http://tauri.localhost` と `http://ipc.localhost`）で WebView2 の中で処理され、名前解決を通らないため、このオプションで外部の名前解決をすべて失敗させても動作に影響しない。この値を指定すると wry の既定値が置き換わるので、既定の `--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection` も同じ文字列に含める。
 - **止められない通信**: このオプションを付けても、WebView2 のブラウザープロセスは起動直後に `substrate.office.com`（Microsoft 365 のサービス）へ接続する。Chromium の通信の仕組みを通らない、ランタイム自身の通信で、アプリからは止められない。NFR-01 の例外として扱い、README に書く。WebKitGTK（Linux）ではこの種の通信は観察されていない。
 
