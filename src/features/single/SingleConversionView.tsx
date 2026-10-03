@@ -128,21 +128,10 @@ export function SingleConversionView(): ReactElement {
     }
 
     const timer = setTimeout(async () => {
-      if (previewFailedRef.current || state.previewFailed) {
-        return;
-      }
       if (previewPromiseRef.current) {
-        try {
-          await previewPromiseRef.current;
-        } catch {
-          return;
-        }
+        await previewPromiseRef.current;
       }
-      if (
-        previewFailedRef.current ||
-        state.previewFailed ||
-        imageId !== currentImageIdRef.current
-      ) {
+      if (previewFailedRef.current || imageId !== currentImageIdRef.current) {
         return;
       }
 

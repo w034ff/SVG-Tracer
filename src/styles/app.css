@@ -253,6 +253,7 @@ select {
 }
 
 .single-view {
+  --single-toolbar-height: 44px;
   flex-grow: 1;
   display: flex;
   flex-direction: column;
@@ -262,7 +263,7 @@ select {
 }
 
 .single-toolbar {
-  height: 44px;
+  height: var(--single-toolbar-height);
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -407,7 +408,7 @@ select {
 }
 
 .single-toolbar + .single-error-banner {
-  top: 44px;
+  top: var(--single-toolbar-height);
 }
 
 .params-disabled-notice {
