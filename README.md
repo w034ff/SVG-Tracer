@@ -19,7 +19,7 @@ Download the appropriate installer or package for your operating system from the
 
 ### Windows
 
-- **Formats**: Available as an MSI installer (`.msi`) or an NSIS installer (`.exe`).
+- **Formats**: Available as an MSI installer (`.msi`) or an NSIS installer (`.exe`). Both install into the same folder, so use only one of them.
 - **Windows SmartScreen Notice**: Because the application binaries are not code-signed, Windows Defender SmartScreen may display a warning ("Windows protected your PC"). To continue, click "**More info**", then click "**Run anyway**".
 - **WebView2 Runtime**: If the Microsoft Edge WebView2 runtime is not already installed on your system, the installer will automatically download and install it.
 
