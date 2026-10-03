@@ -9,9 +9,9 @@ All processing is performed entirely locally on your machine—no images are upl
 
 - **Single Conversion**: Interactive side-by-side preview comparing the original raster image and the vectorized SVG with synchronized zoom and pan. Adjust trace parameters in real time while observing path counts and output file sizes.
 - **Batch Conversion**: Convert entire folders of images in bulk. Utilizes multiple CPU cores for fast parallel processing. Automatically resolves naming conflicts by appending sequential numbers (e.g. `name (1).svg`) to prevent overwriting existing files. Can be cancelled at any point without leaving incomplete or corrupt files.
-- **Presets**: Built-in presets for "Color Logo", "Icon (Few Colors)", and "Black & White", along with full access to advanced trace parameters.
+- **Presets**: Built-in presets for "Logo (color)", "Icon (few colors)", and "Black & white", along with full access to advanced trace parameters.
 - **Bilingual Interface**: Full support for both Japanese and English, with language preference persisted across launches.
-- **Completely Offline & Private**: Zero external network communication. Contains no telemetry, no tracking, and no auto-update checks.
+- **No Network Communication**: The application itself does not make any network requests (contains no telemetry and no update checks).
 
 ## Installation
 
@@ -30,13 +30,13 @@ Download the appropriate installer or package for your operating system from the
 - **AppImage**:
   Make the downloaded AppImage executable and run it:
   ```bash
-  chmod +x SVG-Tracer_*.AppImage
-  ./SVG-Tracer_*.AppImage
+  chmod +x SVG*Tracer_*_amd64.AppImage
+  ./SVG*Tracer_*_amd64.AppImage
   ```
 - **.deb Package**:
   Install via `apt` to ensure all system dependencies are satisfied:
   ```bash
-  sudo apt install ./svg-tracer_*_amd64.deb
+  sudo apt install ./SVG*Tracer_*_amd64.deb
   ```
 
 ## Building from Source
@@ -86,4 +86,4 @@ Download the appropriate installer or package for your operating system from the
 
 This project is licensed under the [MIT License](LICENSE).
 
-Third-party dependencies and their licenses can be viewed directly within the application by opening the "About this app" screen from the top menu bar.
+Third-party dependencies and their licenses can be viewed directly within the application by clicking the "About" button in the top bar.

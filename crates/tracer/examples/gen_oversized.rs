@@ -1,4 +1,4 @@
-//! Generates an oversized PNG image exceeding the MAX_PIXELS limit (16,777,216 pixels)
+//! Generates an oversized PNG image exceeding the `MAX_PIXELS` limit
 //! for manual testing.
 
 use std::env;
@@ -9,10 +9,19 @@ use std::path::PathBuf;
 use image::codecs::png::PngEncoder;
 use image::{ExtendedColorType, ImageEncoder};
 
-/// Width exceeding the 16,777,216 pixel limit when multiplied by height (4097 * 4097 = 16,785,409).
-const OVERSIZED_WIDTH: u32 = 4097;
-/// Height exceeding the 16,777,216 pixel limit when multiplied by width (4097 * 4097 = 16,785,409).
-const OVERSIZED_HEIGHT: u32 = 4097;
+/// Calculates the side length of a square image such that the total pixel count
+/// exceeds `tracer::MAX_PIXELS`.
+///
+/// Computes the ceiling of the square root of `MAX_PIXELS`, and adds 1 if `MAX_PIXELS`
+/// is an exact square.
+fn calculate_oversized_side() -> u32 {
+    let root = (tracer::MAX_PIXELS as f64).sqrt().ceil() as u32;
+    if (root as u64) * (root as u64) == tracer::MAX_PIXELS {
+        root + 1
+    } else {
+        root
+    }
+}
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().collect();
@@ -22,11 +31,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         PathBuf::from("oversized.png")
     };
 
+    let side = calculate_oversized_side();
+    let width = side;
+    let height = side;
+    let total_pixels = (width as u64) * (height as u64);
+
     println!(
-        "Generating oversized PNG ({}x{} = {} pixels > 16,777,216) at: {}",
-        OVERSIZED_WIDTH,
-        OVERSIZED_HEIGHT,
-        (OVERSIZED_WIDTH as u64) * (OVERSIZED_HEIGHT as u64),
+        "Generating oversized PNG ({width}x{height} = {total_pixels} pixels > {}) at: {}",
+        tracer::MAX_PIXELS,
         output_path.display()
     );
 
@@ -40,13 +52,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // A single-channel 8-bit buffer compresses extremely well with DEFLATE while
     // setting dimensions that exceed MAX_PIXELS.
-    let raw_data = vec![0u8; (OVERSIZED_WIDTH as usize) * (OVERSIZED_HEIGHT as usize)];
-    encoder.write_image(
-        &raw_data,
-        OVERSIZED_WIDTH,
-        OVERSIZED_HEIGHT,
-        ExtendedColorType::L8,
-    )?;
+    let raw_data = vec![0u8; (width as usize) * (height as usize)];
+    encoder.write_image(&raw_data, width, height, ExtendedColorType::L8)?;
 
     println!(
         "Successfully wrote oversized PNG: {}",
