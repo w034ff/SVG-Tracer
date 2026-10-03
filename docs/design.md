@@ -347,7 +347,7 @@ D&D は Rust の `WindowEvent::DragDrop` で受ける。複数ファイルが落
 ### 8.5 テーマ（NFR-08）
 
 - 色は `styles/tokens.css` の CSS カスタムプロパティとして定義し、`@media (prefers-color-scheme: dark)` でダーク用の値に切り替える。コンポーネントの CSS に色の値を直接書かない。
-- フォントは同梱せず、OS のものを使う（`tokens.css` の `--font-sans`）。並びは `"Segoe UI", "Noto Sans JP", "Noto Sans CJK JP", "Yu Gothic UI", system-ui, sans-serif`。Ubuntu の `fonts-noto-cjk` は `Noto Sans CJK JP` という名前で入るので、`Noto Sans JP` だけでは一致しない。
+- フォントは同梱せず、OS のものを使う（`tokens.css` の `--font-sans`）。並びは `"Segoe UI", "Noto Sans JP", "Noto Sans CJK JP", "Yu Gothic UI", system-ui, sans-serif`。Windows では Segoe UI と Yu Gothic UI（入っていれば Noto Sans JP）になる。Linux では、並びの先頭で見つからなかった名前に対しても fontconfig が日本語のゴシック体の既定を返し、WebKitGTK はそれを採用するので、実際のフォントはその環境の既定（Ubuntu の標準では Noto Sans CJK JP、Takao などの設定があればそちら）になる。`Noto Sans CJK JP` を並びに入れても、この既定より先には効かない。見た目を OS をまたいでそろえるにはフォントの同梱が要るが、数 MB 増えるので行わない。
 
 ## 9. テスト
 
