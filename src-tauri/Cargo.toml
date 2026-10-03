@@ -1,6 +1,6 @@
 [package]
 name = "svg-tracer"
-version = "0.1.0"
+version = "0.1.1"
 description = "Vectorize bitmap images to clean SVG"
 authors = ["w034ff"]
 edition = "2024"
