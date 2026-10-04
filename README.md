@@ -5,6 +5,8 @@
 SVG Tracer is an open-source desktop application that vectorizes (traces) raster images (PNG, JPEG, WebP, BMP, and GIF) into clean SVG vector graphics.
 All processing is performed entirely locally on your machine—no images are uploaded to any external online service.
 
+![Opening an image, comparing the original with the traced SVG, switching presets, and saving the SVG](docs/images/demo-single.gif)
+
 ## Features
 
 - **Single Conversion**: Interactive side-by-side preview comparing the original raster image and the vectorized SVG with synchronized zoom and pan. Adjust trace parameters in real time while observing path counts and output file sizes.
