@@ -17,6 +17,9 @@ updates:
     ignore:
       # Pinned to an exact version so that SVG output stays the same (design §2).
       - dependency-name: "vtracer"
+      # Its types are passed straight into vtracer's config, so it must be the
+      # version vtracer itself depends on; it moves only together with vtracer.
+      - dependency-name: "visioncortex"
 
   - package-ecosystem: "npm"
     directory: "/"
@@ -25,6 +28,16 @@ updates:
     groups:
       npm-minor-patch:
         update-types: ["minor", "patch"]
+    ignore:
+      # Must stay inside typescript-eslint's peer range, which a new TypeScript
+      # minor usually breaks; bump it by hand once typescript-eslint allows it.
+      - dependency-name: "typescript"
+        update-types:
+          ["version-update:semver-major", "version-update:semver-minor"]
+      # Follows the Node major in .nvmrc, so that types never offer APIs the
+      # runtime lacks; bump it by hand together with .nvmrc.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
