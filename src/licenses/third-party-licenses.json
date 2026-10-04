@@ -2123,27 +2123,27 @@
       "packages": [
         {
           "name": "tauri",
-          "version": "2.12.0",
+          "version": "2.12.1",
           "ecosystem": "cargo"
         },
         {
           "name": "tauri-codegen",
-          "version": "2.7.0",
+          "version": "2.7.1",
           "ecosystem": "cargo"
         },
         {
           "name": "tauri-macros",
-          "version": "2.7.0",
+          "version": "2.7.1",
           "ecosystem": "cargo"
         },
         {
           "name": "tauri-runtime",
-          "version": "2.12.0",
+          "version": "2.12.1",
           "ecosystem": "cargo"
         },
         {
           "name": "tauri-runtime-wry",
-          "version": "2.12.0",
+          "version": "2.12.1",
           "ecosystem": "cargo"
         },
         {
