@@ -161,6 +161,11 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
+      # tauri-action runs cargo without --locked; fail here instead of letting it
+      # resolve versions that differ from the reviewed Cargo.lock.
+      - name: Verify Cargo.lock is current
+        run: cargo fetch --locked
+
       - name: Build and upload release
         uses: tauri-apps/tauri-action@v1
         env:
