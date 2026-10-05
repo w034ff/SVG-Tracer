@@ -2,6 +2,10 @@
 # per ecosystem to keep the number of PRs small; major updates come one by one
 # because they may need code changes.
 #
+# Cargo and npm updates wait 7 days after a version is published (design §7), so
+# that a malicious release has time to be found and pulled first. Security
+# updates are not delayed by the cooldown.
+#
 # A PR that changes Rust or npm dependencies fails the "license list is current"
 # CI step until `npm run licenses:generate` is run on the branch and the result
 # committed (src/licenses/third-party-licenses.json).
@@ -11,6 +15,8 @@ updates:
     directory: "/"
     schedule:
       interval: "monthly"
+    cooldown:
+      default-days: 7
     groups:
       cargo-minor-patch:
         update-types: ["minor", "patch"]
@@ -25,6 +31,8 @@ updates:
     directory: "/"
     schedule:
       interval: "monthly"
+    cooldown:
+      default-days: 7
     groups:
       npm-minor-patch:
         update-types: ["minor", "patch"]

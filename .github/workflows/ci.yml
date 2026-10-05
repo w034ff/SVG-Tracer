@@ -69,10 +69,10 @@ jobs:
         run: cargo fmt --check
 
       - name: Rust Clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
       - name: Rust Test
-        run: cargo test --workspace
+        run: cargo test --workspace --locked
 
       - name: Check TypeScript bindings diff
         shell: bash
@@ -85,7 +85,7 @@ jobs:
           fi
 
       - name: Rust Test (Release Performance)
-        run: cargo test -p tracer --release --test quality test_1024x1024_conversion_time
+        run: cargo test -p tracer --release --locked --test quality test_1024x1024_conversion_time
 
       # Both checks pin their target platforms (deny.toml, about.toml), so the
       # result does not depend on the runner OS and one runner is enough.
