@@ -13,11 +13,16 @@ Rules for the implementer of this repository. Read this file and the documents b
 - Stay inside the task. Do not refactor unrelated code, update unrelated dependencies, or add features that the task does not ask for.
 - Do not edit `docs/requirements.md` or `docs/design.md`. If the design is ambiguous, contradictory or cannot be implemented as written, stop and describe the problem under "設計への質問" in the PR description instead of guessing.
 - Write PR descriptions in Japanese, following `docs/work-plan.md` §2.
-- Write the PR description to `pr-description.md` in the repository root (it is git-ignored) instead of printing it in the chat, and give its title on one line. Overwrite the file for each PR.
-- End your final reply for a task or a fix with the commands the owner runs to publish it, filled in with the real branch name and title so they can be pasted as is:
-  - New PR: `git push -u origin <branch>`, then `gh pr create -R w034ff/SVG-Tracer --base main --head <branch> --title "<title>" --body-file pr-description.md`
-  - Fix to an open PR: `git push`, then `gh pr edit <branch> -R w034ff/SVG-Tracer --body-file pr-description.md` (update `pr-description.md` first so it describes the PR as it now stands)
-- Before opening a PR, run every command in `docs/work-plan.md` §5 and make sure all of them pass.
+- Write the PR description to `pr-description.md` in the repository root (it is git-ignored) instead of printing it in the chat. Overwrite the file for each task. Start it with the heading `# <ID> <title>` and the line `- 状態: 完了` (or `- 状態: 中断` when you stopped with questions for the design).
+- Before writing the PR description, run every command in `docs/work-plan.md` §5 and make sure all of them pass.
+- Never push and never open a PR. The reviewer reviews your branch locally and opens the PR once the review passes (`docs/work-plan.md` §2).
+- As the very last step of a task or a fix, after the PR description, write `agent-status.json` in the repository root (it is git-ignored), exactly `{ "task": "<ID>", "state": "<state>" }` (`docs/work-plan.md` §2.1):
+  - `done`: the task is complete and every change is committed.
+  - `blocked`: you stopped with questions for the design.
+  - `fixed`: you addressed `agent-review.md` and every change is committed.
+- Review feedback arrives in `agent-review.md` in the repository root. Fix it on the same branch, commit, rewrite `pr-description.md` so it describes the branch as it now stands, then write `agent-status.json` with `fixed`. Never edit or delete `agent-review.md`.
+- If a message at the end of your turn says the PR description and `agent-status.json` disagree, or that changes are uncommitted, fix exactly that and change nothing else.
+- End your final reply for a task or a fix with one line: the status (完了 / 中断).
 - In PR descriptions, report only what you actually ran or checked. Never cite a file, setting or design statement as evidence unless it exists and says what you claim.
 
 ## Language
