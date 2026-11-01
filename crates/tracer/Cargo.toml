@@ -16,4 +16,4 @@ serde = { version = "1", features = ["derive"] }
 ts-rs = "12"
 
 [dev-dependencies]
-resvg = "0.48.1"
+resvg = "0.49.0"
